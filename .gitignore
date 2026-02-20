@@ -1,0 +1,49 @@
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Environment variable files (secrets!)
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ── App-generated runtime files ──────────────────────────────────────────────
+
+# Uploaded files (user-supplied PDFs, CSVs, etc.)
+uploads/
+
+# Databases (generated on first run)
+data/*.db
+rules/*.db
+**/*.db
+
+# Large data files
+data/*.csv
+
+# Audit log (written by audit.py at runtime)
+data/audit_log.txt
+
+# Pipeline output / intermediate JSONs (written by agents at runtime)
+rules/violation_report.json
+rules/explanations.json
+rules/hitl_decisions.json
+# NOTE: policy_rules.json is hand-authored — keep it tracked
