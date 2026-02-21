@@ -1,0 +1,16 @@
+[
+  {
+    "version": 3,
+    "timestamp": "2026-02-21T17:52:11Z",
+    "pdf_source": "Restored Archive",
+    "rule_count": 48,
+    "archive": "policy_rules_v3__20260221T175211Z.json"
+  },
+  {
+    "version": 2,
+    "timestamp": "2026-02-21T17:24:39Z",
+    "pdf_source": "Restored Archive",
+    "rule_count": 48,
+    "archive": "policy_rules_v2__20260221T172439Z.json"
+  }
+]

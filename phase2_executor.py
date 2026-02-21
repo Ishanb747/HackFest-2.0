@@ -247,7 +247,7 @@ def run(live_mode: bool = False) -> list[dict]:
     duration = time.time() - t0
 
     # Save to SQLite instead of JSON
-    db.save_violations(report)
+    db.save_violations(report, live=live_mode)
     print(f"\n[{mode_label}] Violation report saved to SQLite database")
 
     # Audit log (only for non-live mode)

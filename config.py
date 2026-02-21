@@ -50,7 +50,6 @@ SQLITE_DB_PATH: Path = DATA_DIR / "rulecheck.db"
 
 # ── Live Monitoring ────────────────────────────────────────────────────────────
 LIVE_TABLE_NAME: str = "transactions_live"
-LIVE_REPORT_PATH: Path = RULES_DIR / "violation_report_live.json"
 WATCHDOG_INTERVAL: int = 20
 INGESTER_BATCH_SIZE: int = 50
 INGESTER_INTERVAL: int = 15

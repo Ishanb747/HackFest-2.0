@@ -114,8 +114,10 @@ def _preflight_checks() -> bool:
         print("           Run: python data/setup_duckdb.py")
         ok = False
 
-    if not RULES_JSON_PATH.exists():
-        print(f"[watchdog] ❌ No rules found: {RULES_JSON_PATH}")
+    import db
+    rules = db.get_rules()
+    if not rules:
+        print(f"[watchdog] ❌ No rules found in SQLite database.")
         print("           Run Phase 1 first to extract policy rules.")
         ok = False
 

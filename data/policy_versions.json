@@ -47,5 +47,19 @@
     "pdf_source": "test_aml_policy_modified (2).pdf",
     "rule_count": 12,
     "archive": "policy_rules_v7__20260221T164720Z.json"
+  },
+  {
+    "version": 8,
+    "timestamp": "2026-02-21T19:06:48.974987Z",
+    "pdf_source": "test_aml_policy_modified (2).pdf",
+    "rule_count": 1,
+    "archive": "policy_rules_v8__20260221T190648Z.json"
+  },
+  {
+    "version": 9,
+    "timestamp": "2026-02-21T19:16:03.123744Z",
+    "pdf_source": "test_aml_policy_modified (2).pdf",
+    "rule_count": 12,
+    "archive": "policy_rules_v9__20260221T191603Z.json"
   }
 ]

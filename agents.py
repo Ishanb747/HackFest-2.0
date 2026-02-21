@@ -11,7 +11,6 @@ from config import AGENT_MAX_ITER, AGENT_VERBOSE, get_llm
 from tools import (
     DoclingPDFParserTool,
     DuckDBExecutionSandboxTool,
-    RuleStoreWriterTool,
     SecureSQLValidatorTool,
 )
 
@@ -42,7 +41,7 @@ def build_rule_architect_agent() -> Agent:
             "machine-readable JSON object with field: id, rule_type, description, "
             "condition_field, operator, threshold_value, and sql_hint."
         ),
-        tools=[DoclingPDFParserTool(), RuleStoreWriterTool()],
+        tools=[DoclingPDFParserTool()],
         llm=get_llm(),
         max_iter=AGENT_MAX_ITER,
         verbose=AGENT_VERBOSE,

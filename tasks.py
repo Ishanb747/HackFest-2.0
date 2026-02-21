@@ -45,7 +45,7 @@ def build_ingest_task(agent, pdf_path: str) -> Task:
     1. Parse the PDF using docling_pdf_parser
     2. Extract all IF/THEN regulatory rules
     3. Format them as JSON with the PolicyRule schema
-    4. Save them using rule_store_writer
+    4. Output the raw JSON array as your final answer
     """
     return Task(
         description=f"""
@@ -79,8 +79,8 @@ Convert EACH rule into a JSON object with these EXACT fields:
 }}
 ```
 
-**Step 4 — Save the rules**
-You MUST use the `rule_store_writer` tool, passing the complete JSON array of ALL extracted rules as a single string argument. If for any reason the tool fails, you MUST output the raw JSON array in your final answer so the system can save it.
+**Step 4 — Output the rules**
+You MUST output the raw JSON array containing ALL extracted rules as your final answer. The system will parse your final text output and save them. Do not use any tools for this step; just output the raw JSON block.
 
 **Important**: 
 - Extract EVERY rule, even minor ones. Thoroughness is critical.
@@ -91,8 +91,7 @@ You MUST use the `rule_store_writer` tool, passing the complete JSON array of AL
 """,
         expected_output=(
             "A complete, valid JSON array containing all extracted rules matching the PolicyRule schema. "
-            "Whether you successfully call rule_store_writer or not, your final answer MUST contain "
-            "the raw JSON array block so the system can parse it as a fallback."
+            "Your final answer MUST contain the raw JSON array block."
         ),
         agent=agent,
     )

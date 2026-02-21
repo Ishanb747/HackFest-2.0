@@ -241,12 +241,66 @@ class DoclingPDFParserTool(BaseTool):
 # 2. RULE STORE WRITER TOOL  (✨ versioning added)
 # ══════════════════════════════════════════════════════════════════════════════
 
+def load_version_manifest() -> list[dict]:
+    manifest_path = Path(__file__).parent / "rules" / "policy_versions.json"
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def load_rules_at_version(version: int) -> list[dict]:
+    manifest = load_version_manifest()
+    archive_name = next((m["archive"] for m in manifest if m["version"] == version), None)
+    if not archive_name:
+        return []
+    archive_path = Path(__file__).parent / "rules" / "versions" / archive_name
+    if archive_path.exists():
+        with open(archive_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def _snapshot_current_rules(pdf_source: str = "unknown") -> dict | None:
+    from datetime import datetime
+    existing_rules = db.get_rules()
+    if not existing_rules:
+        return None
+
+    manifest = load_version_manifest()
+    next_version = manifest[0]["version"] + 1 if manifest else 1
+    
+    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    archive_name = f"policy_rules_v{next_version}__{timestamp}.json"
+    
+    rules_dir = Path(__file__).parent / "rules"
+    versions_dir = rules_dir / "versions"
+    versions_dir.mkdir(parents=True, exist_ok=True)
+    
+    with open(versions_dir / archive_name, "w", encoding="utf-8") as f:
+        json.dump(existing_rules, f, indent=2)
+        
+    entry = {
+        "version": next_version,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "pdf_source": pdf_source,
+        "rule_count": len(existing_rules),
+        "archive": archive_name
+    }
+    
+    manifest.insert(0, entry)
+    with open(rules_dir / "policy_versions.json", "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+        
+    return entry
+
 
 class RuleStoreWriterInput(BaseModel):
-    rules_json: str = Field(
+    rules: list[dict] = Field(
         ...,
         description=(
-            "A JSON string containing a list of extracted policy rules. "
+            "A list of extracted policy rules. "
             "Each rule must have: id, rule_type, description, "
             "condition_field, operator, threshold_value, sql_hint."
         ),
@@ -291,14 +345,9 @@ class RuleStoreWriterTool(BaseTool):
         key = f"{rule.get('condition_field','')}.{rule.get('operator','')}.{rule.get('threshold_value','')}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
-    def _run(self, rules_json: str, pdf_source: str = "unknown") -> str:
+    def _run(self, rules: list[dict], pdf_source: str = "unknown") -> str:
         # ── Parse input ───────────────────────────────────────────────────────
-        try:
-            cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", rules_json.strip(), flags=re.MULTILINE)
-            incoming: list[dict] = json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            return f"ERROR: Invalid JSON input — {e}"
-
+        incoming = rules
         if not isinstance(incoming, list):
             incoming = [incoming]
 
