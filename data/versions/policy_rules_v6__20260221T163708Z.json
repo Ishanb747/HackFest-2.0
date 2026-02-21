@@ -1,0 +1,142 @@
+[
+  {
+    "id": "RULE_001",
+    "rule_type": "threshold",
+    "description": "Any cash transaction or series of related cash transactions that exceeds USD 10,000 in a single business day MUST be reported to FinCEN within 15 calendar days.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 10000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 10000 AND Payment_Format = 'Cash'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_002",
+    "rule_type": "threshold",
+    "description": "All wire transfers where the Amount_Paid exceeds USD 50,000 in a single transaction must be flagged for enhanced due diligence.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 50000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 50000 AND Payment_Format = 'Wire'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_003",
+    "rule_type": "pattern",
+    "description": "Accounts that conduct more than 5 separate transactions within a 24-hour period, each individually below USD 10,000 but cumulatively exceeding USD 10,000, are suspected of structuring.",
+    "condition_field": "total_daily_outflow",
+    "operator": ">",
+    "threshold_value": 10000,
+    "sql_hint": "SELECT * FROM accounts WHERE total_daily_outflow > 10000 AND individual_transactions < 10000",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_004",
+    "rule_type": "threshold",
+    "description": "Any transaction classified as Payment_Format = 'Reinvestment' where the Amount_Paid exceeds USD 25,000 must be escalated to the compliance officer for manual review within 48 hours.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 25000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 25000 AND Payment_Format = 'Reinvestment'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_005",
+    "rule_type": "threshold",
+    "description": "Any transaction where the Payment_Currency differs from the Receiving_Currency and the Amount_Paid exceeds USD 5,000 must be logged as a potential layering event.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 5000,
+    "sql_hint": "SELECT * FROM transactions WHERE Payment_Currency != Receiving_Currency AND Amount_Paid > 5000",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_006",
+    "rule_type": "threshold",
+    "description": "Transfers originating from or destined to banks in high-risk jurisdictions where the amount exceeds USD 1,000 must be automatically flagged pending review.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 1000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 1000 AND jurisdiction_filter = 'high-risk'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_007",
+    "rule_type": "threshold",
+    "description": "Transactions where the Amount_Received deviates by more than 15 percent from Amount_Paid (after FX normalisation) may indicate layering.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 2000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 2000 AND Amount_Received > 0.85 * Amount_Paid",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_008",
+    "rule_type": "threshold",
+    "description": "Accounts with no transactions for 90 or more days that suddenly initiate a transaction exceeding USD 5,000 must be flagged for review.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 5000,
+    "sql_hint": "SELECT * FROM accounts WHERE Amount_Paid > 5000 AND dormancy_check = 'true'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_009",
+    "rule_type": "pattern",
+    "description": "Transactions where Amount_Paid is an exact multiple of 1000 and Amount_Paid >= 5000 are statistically overrepresented in confirmed laundering cases.",
+    "condition_field": "Amount_Paid",
+    "operator": ">=",
+    "threshold_value": 5000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid >= 5000 AND Amount_Paid % 1000 = 0",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_010",
+    "rule_type": "threshold",
+    "description": "Any cheque-based payment exceeding USD 15,000 must be verified against the account holder identity.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 15000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 15000 AND Payment_Format = 'Cheque'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_011",
+    "rule_type": "threshold",
+    "description": "Credit card transactions exceeding USD 8,000 in a single transaction must be reviewed for potential card-not-present fraud.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 8000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 8000 AND Payment_Format = 'Credit Card'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_012",
+    "rule_type": "threshold",
+    "description": "ACH transfers from a single account totalling more than USD 100,000 within a 7-day period constitute a high-risk aggregation pattern.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 10000,
+    "sql_hint": "SELECT * FROM transactions WHERE Payment_Format = 'ACH' AND Amount_Paid > 10000",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_013",
+    "rule_type": "threshold",
+    "description": "All transactions where Is_Laundering = 1 must appear in the quarterly audit report.",
+    "condition_field": "Is_Laundering",
+    "operator": "=",
+    "threshold_value": 1,
+    "sql_hint": "SELECT * FROM transactions WHERE Is_Laundering = 1",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_014",
+    "rule_type": "threshold",
+    "description": "Confirmed laundering transactions where Amount_Paid exceeds USD 50,000 require immediate escalation to the Financial Intelligence Unit (FIU).",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 50000,
+    "sql_hint": "SELECT * FROM transactions WHERE Is_Laundering = 1 AND Amount_Paid > 50000",
+    "fingerprint": null
+  }
+]

@@ -31,99 +31,99 @@ import db
 # ── Paths ────────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).parent.resolve()
 
-# ── Light Theme CSS ──────────────────────────────────────────────────────────
+# ── Professional Modern Theme CSS ──────────────────────────────────────────
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
   /* ── Hide Streamlit chrome ──────────────────────── */
-  header[data-testid="stHeader"] { background: #f8fafc !important; border-bottom: 1px solid #e2e8f0 !important; }
+  header[data-testid="stHeader"] { background: transparent !important; }
   [data-testid="stToolbar"] { display: none !important; }
   .stDeployButton { display: none !important; }
   #MainMenu { visibility: hidden !important; }
   footer { visibility: hidden !important; }
 
   /* ── Global ─────────────────────────────────────── */
-  html, body, .stApp { background: #f0f4f8 !important; color: #1e293b; font-family: 'Inter', sans-serif; }
-  h1,h2,h3,h4 { color: #0f172a !important; }
+  html, body, .stApp { background: #f8fafc !important; color: #0f172a; font-family: 'Inter', sans-serif; }
+  h1,h2,h3,h4 { color: #0f172a !important; font-weight: 700; }
 
   /* ── Hero bar ───────────────────────────────────── */
   .hero-bar {
-    background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #1d4ed8 100%);
-    border-bottom: 1px solid #1e40af;
-    padding: 1.6rem 2rem 1.2rem;
-    margin: -1rem -1rem 1.5rem -1rem;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    margin: 0rem 0rem 2rem 0rem;
     position: relative; overflow: hidden;
+    box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.4);
   }
   .hero-bar::before {
-    content: ''; position: absolute; top: -60%; left: -30%;
-    width: 160%; height: 220%;
-    background: radial-gradient(ellipse at center, rgba(255,255,255,0.12) 0%, transparent 70%);
-    animation: pulse-glow 6s ease-in-out infinite;
+    content: ''; position: absolute; top: -50%; right: -10%;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(56,189,248,0.15) 0%, transparent 70%);
   }
-  @keyframes pulse-glow { 0%,100% { opacity:.5; } 50% { opacity:1; } }
   .hero-title {
-    font-size: 2rem; font-weight: 900; color: #fff;
+    font-size: 2.2rem; font-weight: 800; color: #f8fafc;
     letter-spacing: -1px; margin: 0;
   }
-  .hero-sub { color: rgba(255,255,255,.75); font-size: .9rem; margin-top: .2rem; font-weight: 400; }
-  .hero-badges { margin-top: .8rem; display: flex; gap: .5rem; flex-wrap: wrap; }
+  .hero-sub { color: #94a3b8; font-size: 1rem; margin-top: .4rem; font-weight: 400; }
+  .hero-badges { margin-top: 1.2rem; display: flex; gap: .7rem; flex-wrap: wrap; }
   .hero-badge {
-    display: inline-flex; align-items: center; gap: .35rem;
-    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
-    color: #fff; border-radius: 20px; padding: 3px 12px;
-    font-size: .72rem; font-weight: 600; letter-spacing: .3px;
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(8px);
+    color: #e2e8f0; border-radius: 24px; padding: 4px 14px;
+    font-size: .75rem; font-weight: 600; letter-spacing: .3px;
   }
 
   /* ── KPI cards ──────────────────────────────────── */
-  .kpi-grid { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .kpi-grid { display: flex; gap: 1.2rem; margin-bottom: 2rem; flex-wrap: wrap; }
   .kpi-card {
-    flex: 1; min-width: 160px;
+    flex: 1; min-width: 170px;
     background: #ffffff;
-    border: 1px solid #e2e8f0; border-radius: 14px;
-    padding: 1.2rem 1.4rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    border: 1px solid #e2e8f0; border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.05), 0 2px 4px -1px rgba(0,0,0,.03);
     position: relative; overflow: hidden;
-    transition: transform .15s, box-shadow .15s;
+    transition: all .2s ease;
   }
-  .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.1); }
+  .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 12px 20px -8px rgba(0,0,0,.15); }
   .kpi-card::before {
     content: ''; position: absolute;
-    top: 0; left: 0; right: 0; height: 3px; border-radius: 14px 14px 0 0;
+    top: 0; left: 0; right: 0; height: 4px; border-radius: 16px 16px 0 0;
   }
-  .kpi-card.blue::before  { background: linear-gradient(90deg,#1d4ed8,#3b82f6); }
-  .kpi-card.red::before   { background: linear-gradient(90deg,#b91c1c,#ef4444); }
-  .kpi-card.amber::before { background: linear-gradient(90deg,#b45309,#f59e0b); }
-  .kpi-card.green::before { background: linear-gradient(90deg,#15803d,#22c55e); }
-  .kpi-card.purple::before{ background: linear-gradient(90deg,#6d28d9,#a78bfa); }
-  .kpi-label { font-size: .7rem; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; font-weight: 600; margin-bottom: .4rem; }
-  .kpi-value { font-size: 2.2rem; font-weight: 800; line-height: 1; color: #0f172a; font-variant-numeric: tabular-nums; }
-  .kpi-sub   { font-size: .74rem; color: #94a3b8; margin-top: .3rem; }
-  .kpi-icon  { position: absolute; top: .9rem; right: 1rem; font-size: 1.5rem; opacity: .15; }
+  .kpi-card.blue::before  { background: linear-gradient(90deg,#2563eb,#60a5fa); }
+  .kpi-card.red::before   { background: linear-gradient(90deg,#dc2626,#f87171); }
+  .kpi-card.amber::before { background: linear-gradient(90deg,#d97706,#fbbf24); }
+  .kpi-card.green::before { background: linear-gradient(90deg,#16a34a,#4ade80); }
+  .kpi-card.purple::before{ background: linear-gradient(90deg,#7c3aed,#a78bfa); }
+  .kpi-label { font-size: .75rem; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; font-weight: 600; margin-bottom: .5rem; }
+  .kpi-value { font-size: 2.5rem; font-weight: 800; line-height: 1; color: #0f172a; font-variant-numeric: tabular-nums; }
+  .kpi-sub { font-size: .8rem; color: #94a3b8; font-weight: 500; margin-top: .6rem; }
+  .kpi-icon  { position: absolute; top: 1.2rem; right: 1.5rem; font-size: 1.8rem; opacity: .1; }
 
   /* ── Violation cards ────────────────────────────── */
   .v-card {
-    border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: .75rem;
+    border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1rem;
     border-left: 4px solid; background: #fff;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06);
-    transition: all .15s;
+    box-shadow: 0 2px 5px rgba(0,0,0,.04);
+    transition: all .2s ease;
   }
-  .v-card:hover { transform: translateX(2px); box-shadow: 0 4px 12px rgba(0,0,0,.1); }
-  .v-card.high   { border-color: #ef4444; background: #fff5f5; }
-  .v-card.medium { border-color: #f59e0b; background: #fffbeb; }
-  .v-card.low    { border-color: #22c55e; background: #f0fdf4; }
-  .v-card.clear  { border-color: #22c55e; background: #f0fdf4; }
-  .v-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem; }
-  .v-rule-id { font-weight: 700; font-size: 1rem; color: #0f172a; }
-  .v-count { font-size: 1.6rem; font-weight: 800; }
+  .v-card:hover { transform: translateX(2px); box-shadow: 0 8px 15px -3px rgba(0,0,0,.08); }
+  .v-card.high   { border-color: #ef4444; background: #fffcfc; }
+  .v-card.medium { border-color: #f59e0b; background: #fffdf8; }
+  .v-card.low    { border-color: #22c55e; background: #fdfefd; }
+  .v-card.clear  { border-color: #e2e8f0; background: #ffffff; opacity: 0.7; }
+  .v-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem; }
+  .v-rule-id { font-weight: 700; font-size: 1.1rem; color: #0f172a; }
+  .v-count { font-size: 1.8rem; font-weight: 800; }
   .v-count.high   { color: #dc2626; }
   .v-count.medium { color: #d97706; }
   .v-count.low    { color: #16a34a; }
-  .v-desc  { color: #475569; font-size: .84rem; margin: .3rem 0 .5rem; line-height: 1.4; }
+  .v-desc  { color: #475569; font-size: .95rem; margin: .4rem 0 .6rem; line-height: 1.5; }
   .v-footer{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
 
   /* ── Badges ─────────────────────────────────────── */
-  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: .68rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+  .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: .7rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
   .badge-red    { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; }
   .badge-amber  { background:#fef3c7; color:#d97706; border:1px solid #fcd34d; }
   .badge-green  { background:#dcfce7; color:#16a34a; border:1px solid #86efac; }
@@ -131,12 +131,20 @@ st.markdown("""
   .badge-purple { background:#ede9fe; color:#6d28d9; border:1px solid #c4b5fd; }
   .badge-grey   { background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1; }
 
+  /* ── Custom HTML Tables ────────────────────────── */
+  .st-html-table { width: 100%; border-collapse: collapse; font-size: .85rem; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); margin-bottom: 1rem; }
+  .st-html-table th { background: #f8fafc; color: #475569; font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: .5px; font-size: .75rem; }
+  .st-html-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+  .st-html-table tr:last-child td { border-bottom: none; }
+  .st-html-table tr:hover { background: #f8fafc; }
+
   /* ── Section headings ───────────────────────────── */
   .sec-head {
-    font-size: 1rem; font-weight: 700; color: #0f172a;
-    border-bottom: 1px solid #e2e8f0; padding-bottom: .5rem; margin-bottom: 1rem;
+    font-size: 1.15rem; font-weight: 700; color: #0f172a;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: .6rem; margin-bottom: 1rem;
     display: flex; align-items: center; gap: .5rem;
   }
+
 
   /* ── Sidebar ────────────────────────────────────── */
   section[data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; }
@@ -236,6 +244,29 @@ def load_rules_at_version(version: int) -> list[dict]:
         return _lrav(version)
     except Exception:
         return []
+
+@st.cache_data(ttl=30)
+def calculate_archived_violations(rules: list[dict]) -> int:
+    """Dynamically calculate total violations for an archived rule set using DuckDB."""
+    if not rules:
+        return 0
+    try:
+        from phase2_executor import _build_sql, DB_PATH
+        import duckdb
+        if not DB_PATH.exists(): return 0
+        conn = duckdb.connect(str(DB_PATH), read_only=True)
+        total = 0
+        for r in rules:
+            sql = _build_sql(r, "1")  # only need count, no columns
+            if sql:
+                try:
+                    total += conn.execute(f"SELECT COUNT(*) FROM ({sql}) AS sub").fetchone()[0]
+                except Exception:
+                    pass
+        conn.close()
+        return total
+    except Exception:
+        return 0
 
 
 def severity_cls(count: int) -> str:
@@ -354,17 +385,21 @@ with st.sidebar:
         if selected_label != "▶ Current (live)":
             selected_ver = version_labels[selected_label]
             archived_rules = load_rules_at_version(selected_ver)
+            archived_violations = calculate_archived_violations(archived_rules)
 
-            st.caption(f"Showing **v{selected_ver}** — {len(archived_rules)} rules")
+            st.caption(f"Showing **v{selected_ver}** stats vs Live State")
 
             if archived_rules and rules:
                 current_fps  = {r.get("_fingerprint") for r in rules}
                 archived_fps = {r.get("_fingerprint") for r in archived_rules}
                 added_count   = len(current_fps - archived_fps)
                 removed_count = len(archived_fps - current_fps)
-                col_a, col_b = st.columns(2)
-                col_a.metric("Added since", f"+{added_count}", delta=added_count if added_count else None)
-                col_b.metric("Removed since", f"-{removed_count}", delta=-removed_count if removed_count else None, delta_color="inverse")
+                
+                # Show Rules Delta and Violations Delta
+                col_a, col_b, col_c = st.columns(3)
+                col_a.metric("Rules in v" + str(selected_ver), len(archived_rules), delta=len(archived_rules) - len(rules))
+                col_b.metric("Added since", f"+{added_count}")
+                col_c.metric("Total impact", f"{archived_violations:,}", delta=archived_violations - total_v, delta_color="inverse")
 
             if st.button("📋 Show archived rules", use_container_width=True):
                 st.session_state["show_archived_version"] = selected_ver
@@ -656,6 +691,25 @@ with tab_rules:
         st.info(f"📦 Viewing archived **v{pinned_ver}** — {len(archived_rules)} rules  ·  "
                 f"[Click **▶ Current (live)** in sidebar to return to live view]")
         if archived_rules:
+            # Dynamically calculate the impact for EACH archived rule to display in the table
+            from phase2_executor import _build_sql, DB_PATH
+            import duckdb
+            
+            v_impacts = {}
+            if DB_PATH.exists():
+                try:
+                    conn = duckdb.connect(str(DB_PATH), read_only=True)
+                    for r in archived_rules:
+                        sql = _build_sql(r, "1")
+                        if sql:
+                            try:
+                                v_impacts[r.get("id")] = conn.execute(f"SELECT COUNT(*) FROM ({sql}) AS sub").fetchone()[0]
+                            except Exception:
+                                v_impacts[r.get("id")] = "Error"
+                    conn.close()
+                except Exception:
+                    pass
+
             arch_df = pd.DataFrame([
                 {
                     "ID":          r.get("id"),
@@ -663,6 +717,7 @@ with tab_rules:
                     "Field":       r.get("condition_field", "—"),
                     "Op":          r.get("operator", "—"),
                     "Threshold":   r.get("threshold_value", "—"),
+                    "Historical Impact": v_impacts.get(r.get("id"), "—"),
                     "Description": r.get("description", ""),
                 }
                 for r in archived_rules
@@ -721,12 +776,22 @@ with tab_rules:
         html_table = df.to_html(index=False, escape=True, classes="st-html-table", border=0)
         st.markdown(f'<div style="overflow-x:auto;">{html_table}</div>', unsafe_allow_html=True)
 
-        c1, c2 = st.columns([1, 5])
+        c1, c2, c3 = st.columns([1.5, 1.5, 4])
         with c1:
             st.download_button(
                 "⬇️ Export JSON", data=json.dumps(filtered, indent=2),
                 file_name="RuleCheck_rules.json", mime="application/json",
             )
+        with c2:
+            import pdf_exporter
+            try:
+                pdf_bytes = pdf_exporter.export_rules_pdf(filtered)
+                st.download_button(
+                    "📄 Export PDF", data=pdf_bytes,
+                    file_name="RuleCheck_rules.pdf", mime="application/pdf"
+                )
+            except Exception as e:
+                st.error(f"Failed to generate PDF: {e}")
 
 
 # ── TAB 3: Violations ────────────────────────────────────────────────────────
@@ -830,13 +895,28 @@ with tab_violations:
 
         if all_rows:
             export_df = pd.DataFrame(all_rows)
-            st.download_button(
-                "⬇️ Export All Violations (CSV)",
-                data=export_df.to_csv(index=False),
-                file_name=f"RuleCheck_violations_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                width='stretch',
-            )
+            c1, c2, c3 = st.columns([2, 2, 6])
+            with c1:
+                st.download_button(
+                    "⬇️ Export CSV",
+                    data=export_df.to_csv(index=False),
+                    file_name=f"RuleCheck_violations_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            with c2:
+                import pdf_exporter
+                try:
+                    pdf_bytes = pdf_exporter.export_violations_pdf(violations)
+                    st.download_button(
+                        "📄 Export PDF Report",
+                        data=pdf_bytes,
+                        file_name=f"RuleCheck_violations_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception as e:
+                    st.error(f"Failed to generate PDF: {e}")
 
 
 # ── TAB 4: AI Explanations ────────────────────────────────────────────────────
@@ -892,12 +972,28 @@ with tab_explain:
                 st.markdown(f"**Policy Reference:** *{exp.get('policy_reference', '—')}*")
 
         st.divider()
-        st.download_button(
-            "⬇️ Export Explanations (JSON)",
-            data=json.dumps(explanations, indent=2),
-            file_name=f"RuleCheck_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
-            mime="application/json",
-        )
+        c1, c2, c3 = st.columns([2, 2, 6])
+        with c1:
+            st.download_button(
+                "⬇️ Export Explanations (JSON)",
+                data=json.dumps(explanations, indent=2),
+                file_name=f"RuleCheck_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+        with c2:
+            import pdf_exporter
+            try:
+                pdf_bytes = pdf_exporter.export_explanations_pdf(explanations)
+                st.download_button(
+                    "📄 Export PDF Brief",
+                    data=pdf_bytes,
+                    file_name=f"RuleCheck_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Failed to generate PDF: {e}")
 
 
 # ── TAB 5: Audit Log ─────────────────────────────────────────────────────────
@@ -985,12 +1081,27 @@ with tab_hitl_log:
                 "explanations": explanations,
                 "hitl_decisions": list(hitl_decisions.values()),
             }
-            st.download_button(
-                "⬇️ Download Compliance Report",
-                data=json.dumps(report_data, indent=2, ensure_ascii=False),
-                file_name=f"RuleCheck_compliance_report_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
-                mime="application/json",
-                width="stretch",
-            )
+            c1, c2 = st.columns([1, 1])
+            with c1:
+                st.download_button(
+                    "⬇️ JSON Master Report",
+                    data=json.dumps(report_data, indent=2, ensure_ascii=False),
+                    file_name=f"RuleCheck_compliance_report_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
+            with c2:
+                import pdf_exporter
+                try:
+                    pdf_bytes = pdf_exporter.export_compliance_report(rules, violations, explanations, hitl_decisions)
+                    st.download_button(
+                        "📄 Executive PDF Report",
+                        data=pdf_bytes,
+                        file_name=f"RuleCheck_audit_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception as e:
+                    st.error(f"Failed to generate PDF: {e}")
         else:
             st.caption("Run the pipeline first to generate a compliance report.")

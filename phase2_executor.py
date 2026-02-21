@@ -197,18 +197,22 @@ def run() -> list[dict]:
 
         # Execute
         try:
+            # 1. Get true violation count across the entire dataset
+            count_sql = f"SELECT COUNT(*) FROM ({sql}) AS sub"
+            count = conn.execute(count_sql).fetchone()[0]
+
+            # 2. Fetch sample rows with strict limit
             sql_capped = sql + f"\nLIMIT {ROW_CAP}"
             rel = conn.execute(sql_capped)
             cols = [d[0] for d in rel.description]
             rows = rel.fetchall()
             violations = [{k: _serialize(v) for k, v in zip(cols, r)} for r in rows]
-            count = len(violations)
 
             report.append({
                 "rule_id": rule_id,
                 "rule_description": description,
                 "sql": sql,
-                "violation_count": count,
+                "violation_count": count,  # NOW uses actual total count, not capped sample length
                 "sample_violations": violations[:MAX_SAMPLE_ROWS],
                 "status": "SUCCESS",
             })

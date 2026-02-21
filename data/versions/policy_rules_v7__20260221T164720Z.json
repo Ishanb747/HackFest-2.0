@@ -1,0 +1,122 @@
+[
+  {
+    "id": "RULE_001",
+    "rule_type": "threshold",
+    "description": "Any cash transaction or series of related cash transactions that exceeds USD 10,000 in a single business day MUST be reported to FinCEN within 15 calendar days.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 10000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 10000 AND Payment_Format = 'Cash'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_002",
+    "rule_type": "threshold",
+    "description": "All wire transfers where the Amount_Paid exceeds USD 50,000 in a single transaction must be flagged for enhanced due diligence.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 50000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 50000 AND Payment_Format = 'Wire'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_003",
+    "rule_type": "threshold",
+    "description": "Any transaction classified as Payment_Format = 'Reinvestment' where the Amount_Paid exceeds USD 25,000 must be escalated to the compliance officer for manual review within 48 hours.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 25000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 25000 AND Payment_Format = 'Reinvestment'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_004",
+    "rule_type": "threshold",
+    "description": "Any transaction involving conversion to or from a digital asset where the Amount_Paid exceeds USD 3,000 must be logged and the counterparty wallet address recorded for VASP compliance.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 3000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 3000 AND Payment_Format = 'Crypto'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_005",
+    "rule_type": "threshold",
+    "description": "Any transaction where the Payment_Currency differs from the Receiving_Currency and the Amount_Paid exceeds USD 5,000 must be logged as a potential layering event.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 5000,
+    "sql_hint": "SELECT * FROM transactions WHERE Payment_Currency != Receiving_Currency AND Amount_Paid > 5000",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_006",
+    "rule_type": "threshold",
+    "description": "Transfers originating from or destined to banks in high-risk jurisdictions where the amount exceeds USD 1,000 must be automatically flagged pending review.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 1000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 1000 AND apply jurisdiction filter at runtime",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_007",
+    "rule_type": "threshold",
+    "description": "Accounts with no transactions for 90 or more days that suddenly initiate a transaction exceeding USD 5,000 must be flagged for review.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 5000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 5000 AND dormancy check requires temporal analysis",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_008",
+    "rule_type": "threshold",
+    "description": "Accounts where the total transaction volume in any 7-day rolling window exceeds 300% of the account's 90-day average daily volume must be escalated for behavioural review.",
+    "condition_field": "Rolling_7d_Volume",
+    "operator": ">",
+    "threshold_value": 3,
+    "sql_hint": "SELECT * FROM transactions WHERE Rolling_7d_Volume > (Avg_Daily_90d * 3 * 7)",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_009",
+    "rule_type": "threshold",
+    "description": "Any cheque-based payment exceeding USD 15,000 must be verified against the account holder identity.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 15000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 15000 AND Payment_Format = 'Cheque'",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_010",
+    "rule_type": "threshold",
+    "description": "ACH transfers from a single account totalling more than USD 100,000 within a 7-day period constitute a high-risk aggregation pattern.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 10000,
+    "sql_hint": "SELECT * FROM transactions WHERE Payment_Format = 'ACH' AND Amount_Paid > 10000",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_011",
+    "rule_type": "threshold",
+    "description": "Real-time payment network transactions (e.g. RTP, FedNow) exceeding USD 20,000 in a single transfer or USD 75,000 cumulatively in any 24-hour period must be flagged for same-day review.",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 20000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Paid > 20000 AND Payment_Format = 'RTP' OR Cumulative_RTP_24h > 75000",
+    "fingerprint": null
+  },
+  {
+    "id": "RULE_012",
+    "rule_type": "threshold",
+    "description": "Confirmed laundering transactions where Amount_Paid exceeds USD 50,000 require immediate escalation to the Financial Intelligence Unit (FIU).",
+    "condition_field": "Amount_Paid",
+    "operator": ">",
+    "threshold_value": 50000,
+    "sql_hint": "SELECT * FROM transactions WHERE Is_Laundering = 1 AND Amount_Paid > 50000",
+    "fingerprint": null
+  }
+]
