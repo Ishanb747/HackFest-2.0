@@ -464,5 +464,35 @@
     "threshold_value": null,
     "sql_hint": "SELECT * FROM transactions WHERE Payment_Currency != Receiving_Currency AND Amount_Paid > 5000;",
     "_fingerprint": "1a6884abd96aa5cd"
+  },
+  {
+    "id": "RULE_007",
+    "rule_type": "pattern",
+    "description": "Rapid Cross-Currency Round-Trip",
+    "condition_field": "Amount_Received",
+    "operator": ">",
+    "threshold_value": 2000,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Received > 2000 AND Amount_Paid > 2000",
+    "_fingerprint": "d75f2832fdc4e91b"
+  },
+  {
+    "id": "RULE_007",
+    "rule_type": "pattern",
+    "description": "Rapid Cross-Currency Round-Trip",
+    "condition_field": "Amount_Received",
+    "operator": "!=",
+    "threshold_value": null,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Received deviates by more than 15 percent from Amount_Paid",
+    "_fingerprint": "fc66e84a46c16456"
+  },
+  {
+    "id": "RULE_007",
+    "rule_type": "pattern",
+    "description": "Rapid Cross-Currency Round-Trip",
+    "condition_field": "Amount_Received",
+    "operator": ">",
+    "threshold_value": null,
+    "sql_hint": "SELECT * FROM transactions WHERE Amount_Received > 0.85 * Amount_Paid AND Amount_Paid > 2000;",
+    "_fingerprint": "b211a90a76789dd5"
   }
 ]

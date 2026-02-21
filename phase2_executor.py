@@ -26,7 +26,8 @@ LIVE_REPORT_JSON = ROOT / "rules" / "violation_report_live.json"
 DB_PATH     = ROOT / "data" / "aml.db"
 
 MAX_SAMPLE_ROWS = 5
-ROW_CAP = 1000  # safety cap for violation rows
+SAMPLE_CAP = 100  # number of sample rows to fetch for display (memory-efficient)
+# Note: We now use COUNT(*) for accurate totals, and LIMIT for samples
 
 
 # ── DDL/DML blocklist ─────────────────────────────────────────────────────────
@@ -211,24 +212,28 @@ def run(live_mode: bool = False, output_path: Path | None = None) -> list[dict]:
             print(f"  [{rule_id}] BLOCKED — {reason}")
             continue
 
-        # Execute
+        # Execute: Two-query strategy for accuracy + memory efficiency
         try:
-            sql_capped = sql + f"\nLIMIT {ROW_CAP}"
-            rel = conn.execute(sql_capped)
+            # Query 1: Get accurate count (fast, minimal memory)
+            count_sql = sql.replace(f"SELECT {select_cols}", "SELECT COUNT(*)", 1)
+            count = conn.execute(count_sql).fetchone()[0]
+            
+            # Query 2: Get sample rows for display (memory-efficient)
+            sample_sql = sql + f"\nLIMIT {SAMPLE_CAP}"
+            rel = conn.execute(sample_sql)
             cols = [d[0] for d in rel.description]
             rows = rel.fetchall()
             violations = [{k: _serialize(v) for k, v in zip(cols, r)} for r in rows]
-            count = len(violations)
 
             report.append({
                 "rule_id": rule_id,
                 "rule_description": description,
                 "sql": sql,
-                "violation_count": count,
+                "violation_count": count,  # Accurate total count
                 "sample_violations": violations[:MAX_SAMPLE_ROWS],
                 "status": "SUCCESS",
             })
-            print(f"  [{rule_id}] SUCCESS — {count:,} violations")
+            print(f"  [{rule_id}] SUCCESS — {count:,} violations (showing {len(violations)} samples)")
         except Exception as e:
             report.append({
                 "rule_id": rule_id,

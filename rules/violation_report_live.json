@@ -3,7 +3,7 @@
     "rule_id": "RULE_001",
     "rule_description": "Any cash transaction or series of related cash transactions that exceeds USD 10,000 in a single business day MUST be reported to FinCEN within 15 calendar days.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 10000 AND Payment_Format = 'Cash'",
-    "violation_count": 245,
+    "violation_count": 262,
     "sample_violations": [
       {
         "From_Bank": "015",
@@ -151,7 +151,7 @@
     "rule_id": "RULE_003",
     "rule_description": "Accounts that conduct more than 5 separate transactions within a 24-hour period, each individually below USD 10,000 but cumulatively exceeding USD 10,000, are suspected of structuring.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid < 10000",
-    "violation_count": 1000,
+    "violation_count": 5783,
     "sample_violations": [
       {
         "From_Bank": "005140",
@@ -225,7 +225,7 @@
     "rule_id": "RULE_004",
     "rule_description": "Any transaction classified as Payment_Format = 'Reinvestment' where the Amount_Paid exceeds USD 25,000 must be escalated to the compliance officer for manual review within 48 hours.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 25000 AND Payment_Format = 'Reinvestment'",
-    "violation_count": 219,
+    "violation_count": 226,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -299,7 +299,7 @@
     "rule_id": "RULE_005",
     "rule_description": "Any transaction where the Payment_Currency differs from the Receiving_Currency and the Amount_Paid exceeds USD 5,000 must be logged as a potential layering event.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 5000 AND Payment_Currency != Receiving_Currency",
-    "violation_count": 31,
+    "violation_count": 38,
     "sample_violations": [
       {
         "From_Bank": "004523",
@@ -373,7 +373,7 @@
     "rule_id": "RULE_006",
     "rule_description": "Transfers originating from or destined to banks in high-risk jurisdictions where the amount exceeds USD 1,000 must be automatically flagged pending review.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 1000",
-    "violation_count": 1000,
+    "violation_count": 4361,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -447,7 +447,7 @@
     "rule_id": "RULE_007",
     "rule_description": "Transactions where the Amount_Received deviates by more than 15 percent from Amount_Paid (after FX normalisation) may indicate layering. Flag all mismatches where Amount_Paid > 2000.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 2000",
-    "violation_count": 1000,
+    "violation_count": 3687,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -521,7 +521,7 @@
     "rule_id": "RULE_008",
     "rule_description": "Accounts with no transactions for 90 or more days that suddenly initiate a transaction exceeding USD 5,000 must be flagged for review.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 5000",
-    "violation_count": 1000,
+    "violation_count": 2768,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -603,7 +603,7 @@
     "rule_id": "RULE_010",
     "rule_description": "Any cheque-based payment exceeding USD 15,000 must be verified against the account holder identity.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 15000 AND Payment_Format = 'Cheque'",
-    "violation_count": 690,
+    "violation_count": 739,
     "sample_violations": [
       {
         "From_Bank": "007",
@@ -677,7 +677,7 @@
     "rule_id": "RULE_011",
     "rule_description": "Credit card transactions exceeding USD 8,000 in a single transaction must be reviewed for potential card-not-present fraud.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 8000 AND Payment_Format = 'Credit Card'",
-    "violation_count": 478,
+    "violation_count": 505,
     "sample_violations": [
       {
         "From_Bank": "00908",
@@ -751,7 +751,7 @@
     "rule_id": "RULE_012",
     "rule_description": "ACH transfers from a single account totalling more than USD 100,000 within a 7-day period constitute a high-risk aggregation pattern.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 10000 AND Payment_Format = 'ACH'",
-    "violation_count": 261,
+    "violation_count": 290,
     "sample_violations": [
       {
         "From_Bank": "004523",
@@ -934,7 +934,7 @@
     "rule_id": "RULE_001",
     "rule_description": "Transactions exceeding $10,000 must be reported to the compliance department within 24 hours",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 10000",
-    "violation_count": 1000,
+    "violation_count": 2217,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -1043,7 +1043,7 @@
     "rule_id": "RULE_006",
     "rule_description": "Cash-based transactions exceeding $3,000 should be flagged for review",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 3000 AND Payment_Format = 'Cash'",
-    "violation_count": 330,
+    "violation_count": 350,
     "sample_violations": [
       {
         "From_Bank": "015",
@@ -1335,7 +1335,7 @@
     "rule_id": "RULE_004",
     "rule_description": "High-Value Reinvestment Transactions - Any transaction classified as Payment_Format = 'Reinvestment' where the Amount_Paid exceeds USD 25,000 must be escalated to the compliance officer for manual review within 48 hours.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 25000 AND Payment_Format = 'Reinvestment'",
-    "violation_count": 219,
+    "violation_count": 226,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -1409,7 +1409,7 @@
     "rule_id": "RULE_006",
     "rule_description": "High-Risk Jurisdiction Transfers - Transfers originating from or destined to banks in high-risk jurisdictions where the amount exceeds USD 1,000 must be automatically flagged pending review.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 1000",
-    "violation_count": 1000,
+    "violation_count": 4361,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -1483,7 +1483,7 @@
     "rule_id": "RULE_007",
     "rule_description": "Rapid Cross-Currency Round-Trip - Transactions where the Amount_Received deviates by more than 15 percent from Amount_Paid (after FX normalisation) may indicate layering.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 2000",
-    "violation_count": 1000,
+    "violation_count": 3687,
     "sample_violations": [
       {
         "From_Bank": "012381",
@@ -1565,7 +1565,7 @@
     "rule_id": "RULE_010",
     "rule_description": "Cheque Transactions Above Threshold - Any cheque-based payment exceeding USD 15,000 must be verified against the account holder identity.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 15000 AND Payment_Format = 'Cheque'",
-    "violation_count": 690,
+    "violation_count": 739,
     "sample_violations": [
       {
         "From_Bank": "007",
@@ -1639,7 +1639,7 @@
     "rule_id": "RULE_011",
     "rule_description": "Credit Card Large Purchases - Credit card transactions exceeding USD 8,000 in a single transaction must be reviewed for potential card-not-present fraud.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 8000 AND Payment_Format = 'Credit Card'",
-    "violation_count": 478,
+    "violation_count": 505,
     "sample_violations": [
       {
         "From_Bank": "00908",
@@ -1713,7 +1713,7 @@
     "rule_id": "RULE_012",
     "rule_description": "ACH High-Value Transfers - ACH transfers from a single account totalling more than USD 100,000 within a 7-day period constitute a high-risk aggregation pattern.",
     "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Paid > 100000 AND Payment_Format = 'ACH'",
-    "violation_count": 116,
+    "violation_count": 125,
     "sample_violations": [
       {
         "From_Bank": "004523",
@@ -1948,5 +1948,97 @@
     "sample_violations": [],
     "status": "SQL_ERROR",
     "reason": "Binder Error: Referenced column \"None\" not found in FROM clause!\nCandidate bindings: \"Amount_Received\", \"Amount_Paid\", \"Is_Laundering\"\n\nLINE 3: WHERE Payment_Currency <> None AND Payment_Currency != Receiving_Currency\n                                  ^"
+  },
+  {
+    "rule_id": "RULE_007",
+    "rule_description": "Rapid Cross-Currency Round-Trip",
+    "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Received > 2000",
+    "violation_count": 3685,
+    "sample_violations": [
+      {
+        "From_Bank": "012381",
+        "From_Account": "80148BD80",
+        "To_Bank": "012381",
+        "To_Account": "80148BD80",
+        "Amount_Paid": 671463.64,
+        "Amount_Received": 671463.64,
+        "Payment_Currency": "US Dollar",
+        "Receiving_Currency": "US Dollar",
+        "Payment_Format": "Reinvestment",
+        "Timestamp": "2022-09-01 00:29:00",
+        "Is_Laundering": 0
+      },
+      {
+        "From_Bank": "00908",
+        "From_Account": "800AF2F80",
+        "To_Bank": "0115159",
+        "To_Account": "809C52280",
+        "Amount_Paid": 12228.38,
+        "Amount_Received": 12228.38,
+        "Payment_Currency": "US Dollar",
+        "Receiving_Currency": "US Dollar",
+        "Payment_Format": "Credit Card",
+        "Timestamp": "2022-09-01 00:01:00",
+        "Is_Laundering": 0
+      },
+      {
+        "From_Bank": "01490",
+        "From_Account": "801DE2680",
+        "To_Bank": "025536",
+        "To_Account": "8024F1C20",
+        "Amount_Paid": 5231.4,
+        "Amount_Received": 5231.4,
+        "Payment_Currency": "Euro",
+        "Receiving_Currency": "Euro",
+        "Payment_Format": "Cheque",
+        "Timestamp": "2022-09-01 07:15:00",
+        "Is_Laundering": 0
+      },
+      {
+        "From_Bank": "0315022",
+        "From_Account": "805C51430",
+        "To_Bank": "0212818",
+        "To_Account": "805C51480",
+        "Amount_Paid": 18968.04,
+        "Amount_Received": 18968.04,
+        "Payment_Currency": "Rupee",
+        "Receiving_Currency": "Rupee",
+        "Payment_Format": "Credit Card",
+        "Timestamp": "2022-09-02 01:21:00",
+        "Is_Laundering": 0
+      },
+      {
+        "From_Bank": "010",
+        "From_Account": "800454440",
+        "To_Bank": "009129",
+        "To_Account": "80DACD6D0",
+        "Amount_Paid": 4027.88,
+        "Amount_Received": 4027.88,
+        "Payment_Currency": "US Dollar",
+        "Receiving_Currency": "US Dollar",
+        "Payment_Format": "Cheque",
+        "Timestamp": "2022-09-02 06:25:00",
+        "Is_Laundering": 0
+      }
+    ],
+    "status": "SUCCESS"
+  },
+  {
+    "rule_id": "RULE_007",
+    "rule_description": "Rapid Cross-Currency Round-Trip",
+    "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Received <> None",
+    "violation_count": 0,
+    "sample_violations": [],
+    "status": "SQL_ERROR",
+    "reason": "Binder Error: Referenced column \"None\" not found in FROM clause!\nCandidate bindings: \"Amount_Received\", \"Amount_Paid\", \"Is_Laundering\"\n\nLINE 3: WHERE Amount_Received <> None\n                                 ^"
+  },
+  {
+    "rule_id": "RULE_007",
+    "rule_description": "Rapid Cross-Currency Round-Trip",
+    "sql": "SELECT From_Bank, From_Account, To_Bank, To_Account, Amount_Paid, Amount_Received, Payment_Currency, Receiving_Currency, Payment_Format, Timestamp, Is_Laundering\nFROM aml.transactions_live\nWHERE Amount_Received > None",
+    "violation_count": 0,
+    "sample_violations": [],
+    "status": "SQL_ERROR",
+    "reason": "Binder Error: Referenced column \"None\" not found in FROM clause!\nCandidate bindings: \"Amount_Received\", \"Amount_Paid\", \"Is_Laundering\"\n\nLINE 3: WHERE Amount_Received > None\n                                ^"
   }
 ]

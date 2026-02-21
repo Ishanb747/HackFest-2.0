@@ -751,6 +751,8 @@ with tab_violations:
     if not violations:
         st.info("No violation report found. Run the full pipeline (Phase 1 + 2) first.")
     else:
+        st.info("💡 **Performance Note:** Violation counts are 100% accurate. Sample rows are limited for memory efficiency. Use the export button below to download full datasets.")
+        
         col_f1, col_f2, col_f3 = st.columns([2, 2, 1])
         with col_f1:
             show_only = st.checkbox("Show only triggered rules", value=True)
@@ -843,6 +845,7 @@ with tab_violations:
 
             if samples:
                 with st.expander(f"🔍 View sample violations ({min(len(samples),5)} shown)"):
+                    st.caption(f"💡 Showing {min(len(samples),5)} sample rows. Total violations: {count:,}")
                     st.dataframe(pd.DataFrame(samples[:5]), width='stretch', hide_index=True)
 
             if sql:
@@ -855,13 +858,42 @@ with tab_violations:
 
         if all_rows:
             export_df = pd.DataFrame(all_rows)
-            st.download_button(
-                "⬇️ Export All Violations (CSV)",
-                data=export_df.to_csv(index=False),
-                file_name=f"turgon_violations_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                width='stretch',
-            )
+            col_csv, col_pdf = st.columns(2)
+            
+            with col_csv:
+                st.download_button(
+                    "⬇️ Export Violations (CSV)",
+                    data=export_df.to_csv(index=False),
+                    file_name=f"turgon_violations_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            
+            with col_pdf:
+                # Generate PDF report
+                try:
+                    from pdf_report_generator import generate_violation_report_pdf
+                    import tempfile
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                        pdf_path = generate_violation_report_pdf(
+                            violations=violations,
+                            explanations=explanations if explanations else None,
+                            output_path=tmp.name
+                        )
+                        pdf_data = pdf_path.read_bytes()
+                        
+                    st.download_button(
+                        "📄 Export Report (PDF)",
+                        data=pdf_data,
+                        file_name=f"turgon_violation_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except ImportError:
+                    st.warning("⚠️ Install reportlab to enable PDF export: `pip install reportlab`")
+                except Exception as e:
+                    st.error(f"PDF generation failed: {e}")
 
 
 # ── TAB 4: AI Explanations ────────────────────────────────────────────────────
@@ -917,12 +949,42 @@ with tab_explain:
                 st.markdown(f"**Policy Reference:** *{exp.get('policy_reference', '—')}*")
 
         st.divider()
-        st.download_button(
-            "⬇️ Export Explanations (JSON)",
-            data=json.dumps(explanations, indent=2),
-            file_name=f"turgon_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
-            mime="application/json",
-        )
+        col_json, col_pdf = st.columns(2)
+        
+        with col_json:
+            st.download_button(
+                "⬇️ Export Explanations (JSON)",
+                data=json.dumps(explanations, indent=2),
+                file_name=f"turgon_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                mime="application/json",
+                use_container_width=True,
+            )
+        
+        with col_pdf:
+            # Generate PDF with explanations
+            try:
+                from pdf_report_generator import generate_violation_report_pdf
+                import tempfile
+                
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                    pdf_path = generate_violation_report_pdf(
+                        violations=violations,
+                        explanations=explanations,
+                        output_path=tmp.name
+                    )
+                    pdf_data = pdf_path.read_bytes()
+                    
+                st.download_button(
+                    "📄 Export Explanations (PDF)",
+                    data=pdf_data,
+                    file_name=f"turgon_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+            except ImportError:
+                st.warning("⚠️ Install reportlab to enable PDF export: `pip install reportlab`")
+            except Exception as e:
+                st.error(f"PDF generation failed: {e}")
 
 
 # ── TAB 5: Audit Log ─────────────────────────────────────────────────────────
@@ -1011,13 +1073,48 @@ with tab_hitl_log:
                 "explanations": explanations,
                 "hitl_decisions": list(hitl_decisions.values()),
             }
-            st.download_button(
-                "⬇️ Download Compliance Report",
-                data=json.dumps(report_data, indent=2, ensure_ascii=False),
-                file_name=f"turgon_compliance_report_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
-                mime="application/json",
-                width="stretch",
-            )
+            
+            col_json, col_pdf = st.columns(2)
+            
+            with col_json:
+                st.download_button(
+                    "⬇️ Download Report (JSON)",
+                    data=json.dumps(report_data, indent=2, ensure_ascii=False),
+                    file_name=f"turgon_compliance_report_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
+            
+            with col_pdf:
+                # Generate comprehensive compliance PDF
+                try:
+                    from pdf_report_generator import generate_compliance_report_pdf
+                    from audit import get_stats
+                    import tempfile
+                    
+                    audit_stats = get_stats()
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+                        pdf_path = generate_compliance_report_pdf(
+                            violations=violations,
+                            explanations=explanations,
+                            hitl_decisions=hitl_decisions,
+                            audit_summary=audit_stats,
+                            output_path=tmp.name
+                        )
+                        pdf_data = pdf_path.read_bytes()
+                        
+                    st.download_button(
+                        "📄 Download Report (PDF)",
+                        data=pdf_data,
+                        file_name=f"turgon_compliance_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except ImportError:
+                    st.warning("⚠️ Install reportlab to enable PDF export: `pip install reportlab`")
+                except Exception as e:
+                    st.error(f"PDF generation failed: {e}")
         else:
             st.caption("Run the pipeline first to generate a compliance report.")
 

@@ -8,16 +8,9 @@
   },
   {
     "version": 2,
-    "timestamp": "2026-02-21T17:24:39.963783Z",
-    "pdf_source": "test_aml_policy.pdf",
-    "rule_count": 48,
-    "archive": "policy_rules_v2__20260221T172439Z.json"
-  },
-  {
-    "version": 3,
-    "timestamp": "2026-02-21T17:52:11.196514Z",
-    "pdf_source": "C:\\Users\\SARTHAK\\Desktop\\hackfest - Copy\\HackFest-2.0\\uploads\\test_aml_policy.pdf",
-    "rule_count": 48,
-    "archive": "policy_rules_v3__20260221T175211Z.json"
+    "timestamp": "2026-02-21T22:00:43.103960Z",
+    "pdf_source": "C:\\Users\\SARTHAK\\Desktop\\hackfest - Copy - Copy\\HackFest-2.0\\uploads\\test_aml_policy.pdf",
+    "rule_count": 51,
+    "archive": "policy_rules_v2__20260221T220043Z.json"
   }
 ]
