@@ -20,6 +20,7 @@ import duckdb
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).parent.resolve()
+
 DB_PATH     = ROOT / "data" / "aml.db"
 import db
 
@@ -64,12 +65,12 @@ _PREFERRED_COLS = [
 ]
 
 
-def _get_select_cols(conn: duckdb.DuckDBPyConnection) -> str:
+def _get_select_cols(conn: duckdb.DuckDBPyConnection, table_name: str = "transactions") -> str:
     """Build SELECT clause from columns that actually exist in the table."""
     try:
         rows = conn.execute(
             "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name = 'transactions' ORDER BY ordinal_position"
+            f"WHERE table_name = '{table_name}' ORDER BY ordinal_position"
         ).fetchall()
         actual = {r[0] for r in rows}
         matched = [c for c in _PREFERRED_COLS if c in actual]
@@ -80,7 +81,7 @@ def _get_select_cols(conn: duckdb.DuckDBPyConnection) -> str:
     except Exception:
         return ", ".join(_PREFERRED_COLS)
 
-def _build_sql(rule: dict, select_cols: str = ", ".join(_PREFERRED_COLS)) -> str | None:
+def _build_sql(rule: dict, select_cols: str = ", ".join(_PREFERRED_COLS), table_name: str = "transactions") -> str | None:
     """Build a SELECT query from a rule dict. Returns None if unsupported."""
     field     = rule.get("condition_field", "").strip()
     operator  = rule.get("operator", "=").strip()
@@ -129,7 +130,7 @@ def _build_sql(rule: dict, select_cols: str = ", ".join(_PREFERRED_COLS)) -> str
 
     return (
         f"SELECT {select_cols}\n"
-        f"FROM aml.transactions\n"
+        f"FROM aml.{table_name}\n"
         f"WHERE {where_clause}"
     )
 
@@ -146,20 +147,33 @@ def _serialize(val: Any) -> Any:
 
 # ── Main executor ─────────────────────────────────────────────────────────────
 
-def run() -> list[dict]:
+def run(live_mode: bool = False) -> list[dict]:
+    """
+    Execute Phase 2 SQL generation and violation detection.
+    
+    Args:
+        live_mode: If True, query transactions_live table instead of transactions
+        
+    Returns:
+        List of violation report dictionaries
+    """
     rules: list[dict] = db.get_rules()
     if not rules:
         print(f"[Phase 2] No rules found in database. Run Phase 1 first.")
         return []
 
-    print(f"[Phase 2] Loaded {len(rules)} rules from database")
+    mode_label = "LIVE" if live_mode else "Phase 2"
+    table_name = "transactions_live" if live_mode else "transactions"
+    
+    print(f"[{mode_label}] Loaded {len(rules)} rules from database")
+    print(f"[{mode_label}] Querying table: {table_name}")
 
     if not DB_PATH.exists():
         print(f"[ERROR] DuckDB not found at {DB_PATH}. Run setup_duckdb.py first.")
         return []
 
     conn = duckdb.connect(database=str(DB_PATH), read_only=True)
-    select_cols = _get_select_cols(conn)
+    select_cols = _get_select_cols(conn, table_name)
     report: list[dict] = []
     t0 = time.time()
 
@@ -167,7 +181,7 @@ def run() -> list[dict]:
         rule_id = rule.get("id", "?")
         description = rule.get("description", "")
 
-        sql = _build_sql(rule, select_cols)
+        sql = _build_sql(rule, select_cols, table_name)
         if sql is None:
             report.append({
                 "rule_id": rule_id,
@@ -234,18 +248,19 @@ def run() -> list[dict]:
 
     # Save to SQLite instead of JSON
     db.save_violations(report)
-    print(f"\n[Phase 2] Violation report saved to SQLite database")
+    print(f"\n[{mode_label}] Violation report saved to SQLite database")
 
-    # Audit log
-    try:
-        triggered = sum(1 for r in report if r.get("violation_count", 0) > 0)
-        db.log_pipeline_run(2, duration, {
-            "rules_checked": len(report),
-            "rules_triggered": triggered,
-            "total_violations": sum(r.get("violation_count", 0) for r in report),
-        })
-    except Exception:
-        pass
+    # Audit log (only for non-live mode)
+    if not live_mode:
+        try:
+            triggered = sum(1 for r in report if r.get("violation_count", 0) > 0)
+            db.log_pipeline_run(2, duration, {
+                "rules_checked": len(report),
+                "rules_triggered": triggered,
+                "total_violations": sum(r.get("violation_count", 0) for r in report),
+            })
+        except Exception:
+            pass
 
     return report
 

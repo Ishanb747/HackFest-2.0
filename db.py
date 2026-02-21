@@ -66,6 +66,19 @@ def _connect() -> sqlite3.Connection:
         )
     """)
     
+    # Violations (live run, overwritten each Run)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS violations_live (
+            rule_id          TEXT PRIMARY KEY,
+            rule_description TEXT,
+            sql              TEXT,
+            violation_count  INTEGER,
+            sample_json      TEXT,
+            status           TEXT,
+            reason           TEXT
+        )
+    """)
+    
     # Explanations (Phase 3)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS explanations (
@@ -218,13 +231,14 @@ def get_rules() -> list[dict]:
 # State DB: Violations (Phase 2)
 # ════════════════════════════════════════════════════════════════════════════
 
-def save_violations(report: list[dict]) -> None:
+def save_violations(report: list[dict], live: bool = False) -> None:
     """Clear old violations and save physical run results."""
+    table = "violations_live" if live else "violations"
     conn = _connect()
-    conn.execute("DELETE FROM violations")
+    conn.execute(f"DELETE FROM {table}")
     for v in report:
-        conn.execute("""
-            INSERT INTO violations (rule_id, rule_description, sql, violation_count, sample_json, status, reason)
+        conn.execute(f"""
+            INSERT INTO {table} (rule_id, rule_description, sql, violation_count, sample_json, status, reason)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             v.get("rule_id"),
@@ -239,9 +253,10 @@ def save_violations(report: list[dict]) -> None:
     conn.close()
 
 
-def get_violations() -> list[dict]:
+def get_violations(live: bool = False) -> list[dict]:
+    table = "violations_live" if live else "violations"
     conn = _connect()
-    rows = conn.execute("SELECT * FROM violations").fetchall()
+    rows = conn.execute(f"SELECT * FROM {table}").fetchall()
     conn.close()
     out = []
     for r in rows:

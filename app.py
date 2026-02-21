@@ -196,6 +196,8 @@ st.markdown("""
   .stDataFrame { border-radius: 10px !important; overflow: hidden !important; }
   div[data-testid="stMetric"] { background: #fff; border-radius: 10px; padding: .8rem; border: 1px solid #e2e8f0 !important; }
   div[data-testid="stMetric"] label { color: #64748b !important; }
+  div[data-testid="stMetricValue"] > div { color: #0f172a !important; font-weight: 800 !important; }
+  div[data-testid="stMetricLabel"] > div { color: #64748b !important; }
   hr { border-color: #e2e8f0 !important; margin: 1.5rem 0 !important; }
   details summary { color: #1d4ed8 !important; font-weight: 600; font-size: .85rem; }
   details { border: 1px solid #e2e8f0 !important; border-radius: 8px !important; }
@@ -227,12 +229,23 @@ def load_audit_log() -> list[dict]:
     return db.get_log(limit=200)
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=2)
 def load_version_manifest() -> list[dict]:
     """Load policy version history (newest first)."""
     try:
         from tools import load_version_manifest as _lvm
-        return _lvm()
+        manifest = _lvm()
+        # Filter out versions where the archive file no longer exists
+        from pathlib import Path
+        versions_dir = Path(__file__).parent / "rules" / "versions"
+        valid_manifest = []
+        for entry in manifest:
+            archive_name = entry.get("archive", "")
+            if archive_name:
+                archive_path = versions_dir / archive_name
+                if archive_path.exists():
+                    valid_manifest.append(entry)
+        return valid_manifest
     except Exception:
         return []
 
@@ -527,8 +540,8 @@ rules        = load_rules()
 violations   = load_violations()
 explanations = load_explanations()
 
-tab_overview, tab_rules, tab_violations, tab_explain, tab_hitl_log = st.tabs([
-    "📈 Overview", "📋 Policy Rules", "🚨 Violations", "🤖 AI Explanations", "📋 Audit Log"
+tab_overview, tab_rules, tab_violations, tab_explain, tab_hitl_log, tab_live = st.tabs([
+    "📈 Overview", "📋 Policy Rules", "🚨 Violations", "🤖 AI Explanations", "📋 Audit Log", "🔴 Live Monitor"
 ])
 
 
@@ -1105,3 +1118,184 @@ with tab_hitl_log:
                     st.error(f"Failed to generate PDF: {e}")
         else:
             st.caption("Run the pipeline first to generate a compliance report.")
+
+
+# ── TAB 6: Live Monitor ──────────────────────────────────────────────────────
+with tab_live:
+    st.subheader("🔴 Live Transaction Monitoring")
+    st.caption("Real-time violation detection using ingester.py and turgon_watchdog.py")
+    
+    st.divider()
+    
+    # Check if processes are running
+    import psutil
+    
+    def is_process_running(script_name: str) -> bool:
+        """Check if a Python script is currently running."""
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = proc.info.get('cmdline') or []
+                if any(script_name in str(arg) for arg in cmdline):
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        return False
+    
+    ingester_running = is_process_running('ingester.py')
+    watchdog_running = is_process_running('turgon_watchdog.py')
+    
+    # Status indicators
+    col_status1, col_status2, col_status3 = st.columns(3)
+    with col_status1:
+        status_icon = "🟢" if ingester_running else "🔴"
+        st.metric("Ingester Status", f"{status_icon} {'Running' if ingester_running else 'Stopped'}")
+    with col_status2:
+        status_icon = "🟢" if watchdog_running else "🔴"
+        st.metric("Watchdog Status", f"{status_icon} {'Running' if watchdog_running else 'Stopped'}")
+    with col_status3:
+        # Check live table row count
+        try:
+            import duckdb
+            from config import DUCKDB_PATH, LIVE_TABLE_NAME
+            if DUCKDB_PATH.exists():
+                conn = duckdb.connect(database=str(DUCKDB_PATH), read_only=True)
+                try:
+                    live_count = conn.execute(f"SELECT COUNT(*) FROM {LIVE_TABLE_NAME}").fetchone()[0]
+                    st.metric("Live Transactions", f"{live_count:,}")
+                except Exception:
+                    st.metric("Live Transactions", "Table not found")
+                finally:
+                    conn.close()
+            else:
+                st.metric("Live Transactions", "DB not found")
+        except Exception:
+            st.metric("Live Transactions", "—")
+    
+    st.divider()
+    
+    # Control panel
+    col_left, col_right = st.columns([1, 1])
+    
+    with col_left:
+        st.subheader("🎮 Control Panel")
+        
+        with st.expander("⚙️ Configuration", expanded=False):
+            from config import INGESTER_BATCH_SIZE, INGESTER_INTERVAL, WATCHDOG_INTERVAL
+            st.code(f"""Ingester Settings:
+  Batch Size: {INGESTER_BATCH_SIZE} rows per cycle
+  Interval: {INGESTER_INTERVAL} seconds
+
+Watchdog Settings:
+  Polling Interval: {WATCHDOG_INTERVAL} seconds""", language="text")
+            st.caption("Edit config.py to change these settings")
+        
+        st.markdown("#### Start Services")
+        st.info("⚠️ Run these commands in separate terminal windows:")
+        
+        st.code("python ingester.py", language="bash")
+        st.caption("↑ Starts the transaction stream simulator")
+        
+        st.code("python turgon_watchdog.py", language="bash")
+        st.caption("↑ Starts the real-time violation detector")
+        
+        st.markdown("#### Stop Services")
+        st.caption("Press Ctrl+C in the terminal windows to stop gracefully")
+        
+        if st.button("🔄 Refresh Status", use_container_width=True):
+            st.rerun()
+    
+    with col_right:
+        st.subheader("📊 Live Violation Report")
+        
+        # Load live report
+        live_violations = db.get_violations(live=True)
+        
+        if not live_violations:
+            st.info("No live violations detected yet.\n\nMake sure both ingester.py and turgon_watchdog.py are running.")
+        else:
+            try:
+                
+                if isinstance(live_violations, list):
+                    live_total = sum(v.get("violation_count", 0) for v in live_violations)
+                    live_triggered = sum(1 for v in live_violations if v.get("violation_count", 0) > 0)
+                    
+                    # Live stats
+                    lcol1, lcol2, lcol3 = st.columns(3)
+                    lcol1.metric("Rules Checked", len(live_violations))
+                    lcol2.metric("Rules Triggered", live_triggered)
+                    lcol3.metric("Total Violations", f"{live_total:,}")
+                    
+                    # Last update time
+                    last_update = datetime.now()
+                    st.caption(f"Last polled: {last_update.strftime('%H:%M:%S')}")
+                    
+                    st.divider()
+                    
+                    # Show triggered rules
+                    triggered_rules = [v for v in live_violations if v.get("violation_count", 0) > 0]
+                    
+                    if triggered_rules:
+                        st.markdown("#### 🚨 Active Violations")
+                        for v in sorted(triggered_rules, key=lambda x: x.get("violation_count", 0), reverse=True)[:10]:
+                            rule_id = v.get("rule_id", "?")
+                            count = v.get("violation_count", 0)
+                            desc = v.get("rule_description", "No description")
+                            
+                            sev = severity_cls(count)
+                            sev_label = {"high": "HIGH", "medium": "MEDIUM", "low": "LOW", "clear": "CLEAR"}[sev]
+                            badge_color = {"HIGH": "red", "MEDIUM": "amber", "LOW": "green", "CLEAR": "green"}.get(sev_label, "blue")
+                            
+                            st.markdown(f"""
+                            <div class="v-card {sev}" style="margin-bottom:.5rem;">
+                              <div class="v-header">
+                                <span class="v-rule-id">{rule_id}</span>
+                                {badge(sev_label, badge_color)}
+                              </div>
+                              <div class="v-desc">{desc}</div>
+                              <div class="v-footer">
+                                <span class="v-count {sev}">{count:,}</span>
+                                <span style="color:#6e7f8d;font-size:.82rem;margin-left:.3rem;">violations</span>
+                              </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.success("✅ No violations detected in live stream")
+                    
+                    # Auto-refresh toggle
+                    st.divider()
+                    auto_refresh = st.checkbox("🔄 Auto-refresh every 5 seconds", value=False)
+                    if auto_refresh:
+                        time.sleep(5)
+                        st.rerun()
+                        
+            except Exception as e:
+                st.error(f"Error loading live report: {e}")
+    
+    st.divider()
+    
+    # Instructions
+    with st.expander("📖 How to Use Live Monitoring"):
+        st.markdown("""
+**Live Monitoring** provides real-time violation detection on streaming transaction data.
+
+**Setup:**
+1. Ensure you have run Phase 1 to extract policy rules
+2. Open two terminal windows
+3. In terminal 1, run: `python ingester.py`
+4. In terminal 2, run: `python turgon_watchdog.py`
+
+**What happens:**
+- **ingester.py** continuously inserts random transaction batches into `transactions_live` table
+- **turgon_watchdog.py** monitors for new rows and runs Phase 2 detection automatically
+- Results are written to `violation_report_live.json`
+- This dashboard displays the live violations in real-time
+
+**Configuration:**
+- Edit `config.py` to adjust batch sizes and polling intervals
+- Use `--batch` and `--interval` flags when running ingester.py
+- Use `--interval` flag when running turgon_watchdog.py
+
+**Stopping:**
+- Press Ctrl+C in each terminal window to stop gracefully
+- Both services support clean shutdown with signal handling
+        """)

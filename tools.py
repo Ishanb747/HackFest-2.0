@@ -104,7 +104,23 @@ def load_version_manifest() -> list[dict]:
         return []
     try:
         manifest = json.loads(_VERSION_MANIFEST.read_text(encoding="utf-8"))
-        return sorted(manifest, key=lambda e: e.get("version", 0), reverse=True)
+        # Filter out entries where the archive file no longer exists
+        valid_manifest = []
+        for entry in manifest:
+            archive_name = entry.get("archive", "")
+            if archive_name:
+                archive_path = _VERSIONS_DIR / archive_name
+                if archive_path.exists():
+                    valid_manifest.append(entry)
+        
+        # If we filtered out any entries, update the manifest file
+        if len(valid_manifest) < len(manifest):
+            _VERSION_MANIFEST.write_text(
+                json.dumps(valid_manifest, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        
+        return sorted(valid_manifest, key=lambda e: e.get("version", 0), reverse=True)
     except Exception:
         return []
 
@@ -301,14 +317,31 @@ class RuleStoreWriterTool(BaseTool):
 
         # ── ✨ Snapshot BEFORE modifying ──────────────────────────────────────
         snapshot_entry = None
-        existing = db.get_rules()
-        existing_fps = {r.get("fingerprint") for r in existing} if existing else set()
-        rules_are_changing = any(
-            self._fingerprint(r) not in existing_fps
-            for r in valid_rules
-        )
-        if rules_are_changing and existing:
-            snapshot_entry = _snapshot_current_rules(pdf_source=pdf_source)
+        existing: list[dict] = db.get_rules()
+
+        # Create a version if:
+        # 1. The database has rules (there's something to archive)
+        # 2. AND either:
+        #    a. New rules are being added (fingerprints don't exist)
+        #    b. OR the PDF source is different (new document)
+        if existing:
+            new_fingerprints = {self._fingerprint(r) for r in valid_rules}
+            existing_fps_set = {e.get("fingerprint") for e in existing}
+            
+            # Check if any new rules are being added
+            rules_are_changing = bool(new_fingerprints - existing_fps_set)
+            
+            # Check if this is a completely different rule set (less than 50% overlap)
+            if existing_fps_set:
+                overlap = len(new_fingerprints & existing_fps_set)
+                overlap_ratio = overlap / max(len(existing_fps_set), len(new_fingerprints))
+                is_different_document = overlap_ratio < 0.5
+            else:
+                is_different_document = True
+            
+            if rules_are_changing or is_different_document:
+                snapshot_entry = _snapshot_current_rules(pdf_source=pdf_source)
+
         # ── Persist ───────────────────────────────────────────────────────────
         added, skipped = db.save_rules(valid_rules)
 
