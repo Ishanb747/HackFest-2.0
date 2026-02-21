@@ -50,6 +50,13 @@ AML_CSV_CANDIDATES: list[str] = [
 # ── Rules Store ────────────────────────────────────────────────────────────────
 RULES_JSON_PATH: Path = RULES_DIR / "policy_rules.json"
 
+# ── Live Monitoring ────────────────────────────────────────────────────────────
+LIVE_TABLE_NAME: str = "transactions_live"
+LIVE_REPORT_PATH: Path = RULES_DIR / "violation_report_live.json"
+WATCHDOG_INTERVAL: int = 20
+INGESTER_BATCH_SIZE: int = 50
+INGESTER_INTERVAL: int = 15
+
 # ── Execution Sandbox ──────────────────────────────────────────────────────────
 # Maximum rows returned from a single SQL violation query
 MAX_VIOLATION_ROWS: int = 500

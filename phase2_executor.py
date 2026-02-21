@@ -22,6 +22,7 @@ import duckdb
 ROOT = Path(__file__).parent.resolve()
 RULES_JSON  = ROOT / "rules" / "policy_rules.json"
 REPORT_JSON = ROOT / "rules" / "violation_report.json"
+LIVE_REPORT_JSON = ROOT / "rules" / "violation_report_live.json"
 DB_PATH     = ROOT / "data" / "aml.db"
 
 MAX_SAMPLE_ROWS = 5
@@ -65,12 +66,12 @@ _PREFERRED_COLS = [
 ]
 
 
-def _get_select_cols(conn: duckdb.DuckDBPyConnection) -> str:
+def _get_select_cols(conn: duckdb.DuckDBPyConnection, table_name: str = "transactions") -> str:
     """Build SELECT clause from columns that actually exist in the table."""
     try:
         rows = conn.execute(
             "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name = 'transactions' ORDER BY ordinal_position"
+            f"WHERE table_name = '{table_name}' ORDER BY ordinal_position"
         ).fetchall()
         actual = {r[0] for r in rows}
         matched = [c for c in _PREFERRED_COLS if c in actual]
@@ -81,7 +82,7 @@ def _get_select_cols(conn: duckdb.DuckDBPyConnection) -> str:
     except Exception:
         return ", ".join(_PREFERRED_COLS)
 
-def _build_sql(rule: dict, select_cols: str = ", ".join(_PREFERRED_COLS)) -> str | None:
+def _build_sql(rule: dict, select_cols: str = ", ".join(_PREFERRED_COLS), table_name: str = "transactions") -> str | None:
     """Build a SELECT query from a rule dict. Returns None if unsupported."""
     field     = rule.get("condition_field", "").strip()
     operator  = rule.get("operator", "=").strip()
@@ -130,7 +131,7 @@ def _build_sql(rule: dict, select_cols: str = ", ".join(_PREFERRED_COLS)) -> str
 
     return (
         f"SELECT {select_cols}\n"
-        f"FROM aml.transactions\n"
+        f"FROM aml.{table_name}\n"
         f"WHERE {where_clause}"
     )
 
@@ -147,20 +148,34 @@ def _serialize(val: Any) -> Any:
 
 # ── Main executor ─────────────────────────────────────────────────────────────
 
-def run() -> list[dict]:
+def run(live_mode: bool = False, output_path: Path | None = None) -> list[dict]:
+    """
+    Execute Phase 2 SQL generation and violation detection.
+    
+    Args:
+        live_mode: If True, query transactions_live table instead of transactions
+        output_path: Custom output path for the report (defaults to REPORT_JSON or LIVE_REPORT_JSON)
+    
+    Returns:
+        List of violation report dictionaries
+    """
     if not RULES_JSON.exists():
         print(f"[ERROR] Rules file not found: {RULES_JSON}")
         return []
 
     rules: list[dict] = json.loads(RULES_JSON.read_text(encoding="utf-8"))
-    print(f"[Phase 2] Loaded {len(rules)} rules from {RULES_JSON.name}")
+    mode_label = "LIVE" if live_mode else "Phase 2"
+    table_name = "transactions_live" if live_mode else "transactions"
+    
+    print(f"[{mode_label}] Loaded {len(rules)} rules from {RULES_JSON.name}")
+    print(f"[{mode_label}] Querying table: {table_name}")
 
     if not DB_PATH.exists():
         print(f"[ERROR] DuckDB not found at {DB_PATH}. Run setup_duckdb.py first.")
         return []
 
     conn = duckdb.connect(database=str(DB_PATH), read_only=True)
-    select_cols = _get_select_cols(conn)
+    select_cols = _get_select_cols(conn, table_name)
     report: list[dict] = []
     t0 = time.time()
 
@@ -168,7 +183,7 @@ def run() -> list[dict]:
         rule_id = rule.get("id", "?")
         description = rule.get("description", "")
 
-        sql = _build_sql(rule, select_cols)
+        sql = _build_sql(rule, select_cols, table_name)
         if sql is None:
             report.append({
                 "rule_id": rule_id,
@@ -229,24 +244,29 @@ def run() -> list[dict]:
     conn.close()
     duration = time.time() - t0
 
-    REPORT_JSON.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_JSON.write_text(
+    # Determine output path
+    if output_path is None:
+        output_path = LIVE_REPORT_JSON if live_mode else REPORT_JSON
+    
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
         json.dumps(report, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    print(f"\n[Phase 2] Violation report saved -> {REPORT_JSON}")
+    print(f"\n[{mode_label}] Violation report saved -> {output_path}")
 
-    # Audit log
-    try:
-        from audit import log_pipeline_run
-        triggered = sum(1 for r in report if r.get("violation_count", 0) > 0)
-        log_pipeline_run(2, duration, {
-            "rules_checked": len(report),
-            "rules_triggered": triggered,
-            "total_violations": sum(r.get("violation_count", 0) for r in report),
-        })
-    except Exception:
-        pass
+    # Audit log (only for non-live mode)
+    if not live_mode:
+        try:
+            from audit import log_pipeline_run
+            triggered = sum(1 for r in report if r.get("violation_count", 0) > 0)
+            log_pipeline_run(2, duration, {
+                "rules_checked": len(report),
+                "rules_triggered": triggered,
+                "total_violations": sum(r.get("violation_count", 0) for r in report),
+            })
+        except Exception:
+            pass
 
     return report
 
