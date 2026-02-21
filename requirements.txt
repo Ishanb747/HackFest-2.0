@@ -3,9 +3,8 @@
 crewai>=0.80.0
 crewai-tools>=0.14.0
 
-# LLM / OpenAI-compatible client
-langchain-openai>=0.2.0
-openai>=1.30.0
+# LLM / Groq client
+langchain-groq>=0.1.0
 
 # PDF Ingestion
 docling>=2.3.0

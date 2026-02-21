@@ -4,6 +4,7 @@ tools.py — Custom CrewAI tools for Turgon.
 Tools:
   1. DoclingPDFParserTool    — Parse regulatory PDFs with layout awareness
   2. RuleStoreWriterTool     — Save & deduplicate extracted rules to JSON
+                               ✨ NEW: Policy versioning with manifest tracking
   3. SecureSQLValidatorTool  — Multi-layer read-only SQL enforcement
   4. DuckDBExecutionSandboxTool — Execute validated SQL against AML database
 """
@@ -13,7 +14,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Type
 
@@ -26,6 +29,101 @@ from config import (
     MAX_VIOLATION_ROWS,
     RULES_JSON_PATH,
 )
+
+# ── Versioning paths (sit alongside policy_rules.json) ────────────────────────
+_VERSIONS_DIR     = RULES_JSON_PATH.parent / "versions"
+_VERSION_MANIFEST = RULES_JSON_PATH.parent / "policy_versions.json"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Versioning helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _next_version() -> int:
+    """Return the next version number based on the manifest."""
+    if _VERSION_MANIFEST.exists():
+        try:
+            manifest = json.loads(_VERSION_MANIFEST.read_text(encoding="utf-8"))
+            return max((e.get("version", 0) for e in manifest), default=0) + 1
+        except Exception:
+            pass
+    return 1
+
+
+def _snapshot_current_rules(pdf_source: str = "unknown") -> dict | None:
+    """
+    Copy current policy_rules.json into versions/ and update the manifest.
+    Returns the manifest entry dict, or None if there was nothing to snapshot.
+    """
+    if not RULES_JSON_PATH.exists():
+        return None
+
+    _VERSIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+    version = _next_version()
+    ts      = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+
+    # Read current rules so we can record rule_count
+    try:
+        current_rules = json.loads(RULES_JSON_PATH.read_text(encoding="utf-8"))
+        rule_count    = len(current_rules)
+    except Exception:
+        rule_count = 0
+
+    # Copy the file
+    archive_name = f"policy_rules_v{version}__{ts}.json"
+    archive_path = _VERSIONS_DIR / archive_name
+    shutil.copy2(RULES_JSON_PATH, archive_path)
+
+    # Build manifest entry
+    entry = {
+        "version":    version,
+        "timestamp":  datetime.utcnow().isoformat() + "Z",
+        "pdf_source": pdf_source,
+        "rule_count": rule_count,
+        "archive":    archive_name,
+    }
+
+    # Load + append manifest
+    manifest: list[dict] = []
+    if _VERSION_MANIFEST.exists():
+        try:
+            manifest = json.loads(_VERSION_MANIFEST.read_text(encoding="utf-8"))
+        except Exception:
+            manifest = []
+
+    manifest.append(entry)
+    _VERSION_MANIFEST.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    return entry
+
+
+def load_version_manifest() -> list[dict]:
+    """Return the full version manifest (newest first). Safe to call from app.py."""
+    if not _VERSION_MANIFEST.exists():
+        return []
+    try:
+        manifest = json.loads(_VERSION_MANIFEST.read_text(encoding="utf-8"))
+        return sorted(manifest, key=lambda e: e.get("version", 0), reverse=True)
+    except Exception:
+        return []
+
+
+def load_rules_at_version(version: int) -> list[dict]:
+    """Load the policy_rules.json snapshot for a specific version number."""
+    manifest = load_version_manifest()
+    for entry in manifest:
+        if entry.get("version") == version:
+            archive_path = _VERSIONS_DIR / entry["archive"]
+            if archive_path.exists():
+                try:
+                    return json.loads(archive_path.read_text(encoding="utf-8"))
+                except Exception:
+                    return []
+    return []
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -72,7 +170,6 @@ class DoclingPDFParserTool(BaseTool):
             pipeline_used = "standard"
         except Exception as e1:
             # ── Attempt 2: SimplePipeline (no ML layout model required) ──────
-            # Triggered when transformers/model weights are missing or stale.
             try:
                 from docling.pipeline.simple_pipeline import SimplePipeline
                 from docling.datamodel.pipeline_options import PipelineOptions
@@ -125,7 +222,7 @@ class DoclingPDFParserTool(BaseTool):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. RULE STORE WRITER TOOL
+# 2. RULE STORE WRITER TOOL  (✨ versioning added)
 # ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -137,6 +234,10 @@ class RuleStoreWriterInput(BaseModel):
             "Each rule must have: id, rule_type, description, "
             "condition_field, operator, threshold_value, sql_hint."
         ),
+    )
+    pdf_source: str = Field(
+        default="unknown",
+        description="Name/path of the source PDF these rules came from (used for version tracking).",
     )
 
 
@@ -155,12 +256,16 @@ class RuleStoreWriterTool(BaseTool):
     """
     Validate, deduplicate (via SHA-256 fingerprint), and persist
     extracted policy rules to the local JSON rule store.
+
+    ✨ Versioning: Before overwriting policy_rules.json, the current
+    version is archived to rules/versions/ and the manifest is updated.
     """
 
     name: str = "rule_store_writer"
     description: str = (
         "Save extracted policy rules to the local JSON rule store. "
         "Accepts a JSON string of rule objects. Deduplicates rules automatically. "
+        "Archives the previous rule set for version history. "
         "Returns a summary of how many rules were saved or skipped."
     )
     args_schema: Type[BaseModel] = RuleStoreWriterInput
@@ -170,17 +275,16 @@ class RuleStoreWriterTool(BaseTool):
         key = f"{rule.get('condition_field','')}.{rule.get('operator','')}.{rule.get('threshold_value','')}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
-    def _run(self, rules_json: str) -> str:
+    def _run(self, rules_json: str, pdf_source: str = "unknown") -> str:
         # ── Parse input ───────────────────────────────────────────────────────
         try:
-            # Strip markdown code fences if the LLM wrapped the JSON
             cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", rules_json.strip(), flags=re.MULTILINE)
             incoming: list[dict] = json.loads(cleaned)
         except json.JSONDecodeError as e:
             return f"ERROR: Invalid JSON input — {e}"
 
         if not isinstance(incoming, list):
-            incoming = [incoming]  # wrap single object
+            incoming = [incoming]
 
         # ── Validate with Pydantic ────────────────────────────────────────────
         valid_rules = []
@@ -203,6 +307,15 @@ class RuleStoreWriterTool(BaseTool):
                 existing = json.loads(RULES_JSON_PATH.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 existing = []
+
+        # ── ✨ Snapshot BEFORE modifying ──────────────────────────────────────
+        snapshot_entry = None
+        rules_are_changing = any(
+            self._fingerprint(r) not in {e.get("_fingerprint") for e in existing}
+            for r in valid_rules
+        )
+        if rules_are_changing and RULES_JSON_PATH.exists():
+            snapshot_entry = _snapshot_current_rules(pdf_source=pdf_source)
 
         existing_fps = {r.get("_fingerprint") for r in existing}
 
@@ -231,6 +344,11 @@ class RuleStoreWriterTool(BaseTool):
             f"Total rules in store: {len(existing)}. "
             f"Saved to: {RULES_JSON_PATH}"
         )
+        if snapshot_entry:
+            summary += (
+                f"\n📦 Policy versioned: v{snapshot_entry['version']} archived "
+                f"({snapshot_entry['rule_count']} previous rules → {snapshot_entry['archive']})"
+            )
         if validation_errors:
             summary += f"\nValidation warnings: {'; '.join(validation_errors)}"
         return summary
@@ -270,7 +388,7 @@ _SELECT_PATTERN = re.compile(r"^\s*SELECT\b", re.IGNORECASE)
 
 # Comment stripping patterns
 _INLINE_COMMENT = re.compile(r"--[^\n]*")
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_BLOCK_COMMENT  = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 
 class SecureSQLValidatorInput(BaseModel):
@@ -319,8 +437,6 @@ class SecureSQLValidatorTool(BaseTool):
             })
 
         # ── Layer 3: Blocklist token scan ─────────────────────────────────────
-        # Tokenise on word boundaries to avoid false positives
-        # (e.g. "EXECUTE" inside a column alias like "execute_count" won't match)
         sql_upper = cleaned.upper()
         for blocked in _DDL_DML_BLOCKLIST:
             pattern = re.compile(r"\b" + re.escape(blocked) + r"\b")
@@ -334,7 +450,6 @@ class SecureSQLValidatorTool(BaseTool):
                 })
 
         # ── Layer 4: Semicolon injection check ────────────────────────────────
-        # Split on semicolon and count non-empty statements
         statements = [s.strip() for s in cleaned.split(";") if s.strip()]
         if len(statements) > 1:
             return json.dumps({
@@ -411,21 +526,18 @@ class DuckDBExecutionSandboxTool(BaseTool):
         # ── Step 3: Execute in read-only sandbox ──────────────────────────────
         conn = None
         try:
-            # read_only=True guarantees no writes at the DuckDB engine level
             conn = duckdb.connect(database=str(DUCKDB_PATH), read_only=True)
 
-            # Add row cap via LIMIT if not already present
             sql_capped = sql.rstrip().rstrip(";")
             if not re.search(r"\bLIMIT\b", sql_capped, re.IGNORECASE):
                 sql_capped = f"{sql_capped} LIMIT {MAX_VIOLATION_ROWS}"
 
             relation = conn.execute(sql_capped)
-            columns = [desc[0] for desc in relation.description]
-            rows = relation.fetchall()
+            columns  = [desc[0] for desc in relation.description]
+            rows     = relation.fetchall()
 
             violations = [dict(zip(columns, row)) for row in rows]
 
-            # Convert non-serializable types (dates, Decimal) to strings
             def _serialize(obj):
                 try:
                     json.dumps(obj)
@@ -439,29 +551,29 @@ class DuckDBExecutionSandboxTool(BaseTool):
             ]
 
             return json.dumps({
-                "rule_id": rule_id,
-                "status": "SUCCESS",
+                "rule_id":      rule_id,
+                "status":       "SUCCESS",
                 "sql_executed": sql_capped,
-                "row_count": len(violations_serialized),
-                "capped_at": MAX_VIOLATION_ROWS,
-                "violations": violations_serialized,
+                "row_count":    len(violations_serialized),
+                "capped_at":    MAX_VIOLATION_ROWS,
+                "violations":   violations_serialized,
             }, default=str)
 
         except duckdb.Error as e:
             return json.dumps({
-                "rule_id": rule_id,
-                "status": "SQL_ERROR",
-                "reason": str(e),
+                "rule_id":    rule_id,
+                "status":     "SQL_ERROR",
+                "reason":     str(e),
                 "violations": [],
-                "row_count": 0,
+                "row_count":  0,
             })
         except Exception as e:
             return json.dumps({
-                "rule_id": rule_id,
-                "status": "ERROR",
-                "reason": f"Unexpected error: {str(e)}",
+                "rule_id":    rule_id,
+                "status":     "ERROR",
+                "reason":     f"Unexpected error: {str(e)}",
                 "violations": [],
-                "row_count": 0,
+                "row_count":  0,
             })
         finally:
             if conn:

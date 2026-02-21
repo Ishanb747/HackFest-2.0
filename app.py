@@ -142,6 +142,16 @@ st.markdown("""
   /* ── Sidebar ────────────────────────────────────── */
   section[data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; }
   section[data-testid="stSidebar"] .stMarkdown h2 { color: #1d4ed8 !important; }
+  section[data-testid="stSidebar"] .stMarkdown p { color: #1e293b !important; }
+  section[data-testid="stSidebar"] .stMarkdown h3 { color: #0f172a !important; }
+  section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { color: #1e293b !important; }
+  section[data-testid="stSidebar"] [data-testid="stMetricLabel"] { color: #64748b !important; }
+  section[data-testid="stSidebar"] [data-testid="stMetricValue"] { color: #0f172a !important; }
+  section[data-testid="stSidebar"] .stRadio label p { color: #1e293b !important; }
+  section[data-testid="stSidebar"] .stCaption p { color: #64748b !important; }
+  section[data-testid="stSidebar"] [data-testid="stFileUploader"] { background: #f8fafc !important; border: 1px dashed #94a3b8 !important; border-radius: 8px !important; }
+  section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"] p { color: #1e293b !important; }
+  section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"] span { color: #64748b !important; }
 
   /* ── Tabs ───────────────────────────────────────── */
   button[data-baseweb="tab"] { background: transparent !important; color: #64748b !important; font-weight: 600; transition: all .15s; }
@@ -254,6 +264,25 @@ def load_audit_log() -> list[dict]:
         return []
 
 
+@st.cache_data(ttl=5)
+def load_version_manifest() -> list[dict]:
+    """Load policy version history (newest first)."""
+    try:
+        from tools import load_version_manifest as _lvm
+        return _lvm()
+    except Exception:
+        return []
+
+
+def load_rules_at_version(version: int) -> list[dict]:
+    """Load archived rules for a specific version number."""
+    try:
+        from tools import load_rules_at_version as _lrav
+        return _lrav(version)
+    except Exception:
+        return []
+
+
 def severity_cls(count: int) -> str:
     if count == 0: return "clear"
     if count < 50: return "low"
@@ -346,6 +375,47 @@ with st.sidebar:
     st.metric("Total violations",      f"{total_v:,}" if violations else "—")
     st.metric("High-severity rules",   high_sev)
     st.caption(f"Last run: {last_run_str()}")
+
+    st.divider()
+
+    # ── Policy Version History ────────────────────────────────────────────────
+    st.markdown("### 📦 Policy Versions")
+    version_manifest = load_version_manifest()
+
+    if not version_manifest:
+        st.caption("No versions yet. Run Phase 1 to create the first snapshot.")
+    else:
+        # Build label options
+        version_labels = {
+            f"v{e['version']} — {e['timestamp'][:10]} ({e['rule_count']} rules) [{e['pdf_source']}]": e["version"]
+            for e in version_manifest
+        }
+        selected_label = st.selectbox(
+            "Compare version",
+            options=["▶ Current (live)"] + list(version_labels.keys()),
+            label_visibility="collapsed",
+        )
+
+        if selected_label != "▶ Current (live)":
+            selected_ver = version_labels[selected_label]
+            archived_rules = load_rules_at_version(selected_ver)
+
+            st.caption(f"Showing **v{selected_ver}** — {len(archived_rules)} rules")
+
+            if archived_rules and rules:
+                current_fps  = {r.get("_fingerprint") for r in rules}
+                archived_fps = {r.get("_fingerprint") for r in archived_rules}
+                added_count   = len(current_fps - archived_fps)
+                removed_count = len(archived_fps - current_fps)
+                col_a, col_b = st.columns(2)
+                col_a.metric("Added since", f"+{added_count}", delta=added_count if added_count else None)
+                col_b.metric("Removed since", f"-{removed_count}", delta=-removed_count if removed_count else None, delta_color="inverse")
+
+            if st.button("📋 Show archived rules", use_container_width=True):
+                st.session_state["show_archived_version"] = selected_ver
+        else:
+            # Clear any previously pinned version view
+            st.session_state.pop("show_archived_version", None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -499,13 +569,13 @@ with tab_overview:
                 hovertemplate="<b>%{y}</b><br>Violations: %{x:,}<extra></extra>",
             ))
             fig.update_layout(
-                template="plotly_dark",
+                template="plotly_white",
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 margin=dict(t=10, b=20, l=0, r=20),
                 height=360,
-                xaxis=dict(title="Violation Count", gridcolor="#1e2d40"),
-                yaxis=dict(title=None, tickfont=dict(size=11)),
-                font=dict(family="Inter"),
+                xaxis=dict(title="Violation Count", gridcolor="#e2e8f0", color="#475569"),
+                yaxis=dict(title=None, tickfont=dict(size=11, color="#1e293b")),
+                font=dict(family="Inter", color="#1e293b"),
             )
             st.plotly_chart(fig, width='stretch')
 
@@ -531,15 +601,15 @@ with tab_overview:
                 hovertemplate="<b>%{label}</b><br>Rules: %{value}<extra></extra>",
             )
             fig2.update_layout(
-                template="plotly_dark",
+                template="plotly_white",
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 margin=dict(t=0, b=0, l=0, r=0),
                 height=300,
                 showlegend=False,
-                font=dict(family="Inter"),
+                font=dict(family="Inter", color="#1e293b"),
                 annotations=[dict(
                     text=f"<b>{len(violations)}</b><br>rules",
-                    x=.5, y=.5, font_size=16, showarrow=False, font_color="#e6edf3",
+                    x=.5, y=.5, font_size=16, showarrow=False, font_color="#0f172a",
                 )],
             )
             st.plotly_chart(fig2, width='stretch')
@@ -556,12 +626,12 @@ with tab_overview:
                 ))
                 fig3.update_traces(textinfo="percent", hovertemplate="<b>%{label}</b><br>Count: %{value}<extra></extra>")
                 fig3.update_layout(
-                    template="plotly_dark",
+                    template="plotly_white",
                     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                     margin=dict(t=0, b=0, l=0, r=0),
                     height=220,
-                    font=dict(family="Inter"),
-                    legend=dict(orientation="v", font=dict(size=11), x=1.05),
+                    font=dict(family="Inter", color="#1e293b"),
+                    legend=dict(orientation="v", font=dict(size=11, color="#1e293b"), x=1.05),
                 )
                 st.plotly_chart(fig3, width='stretch')
 
@@ -577,6 +647,34 @@ with tab_overview:
 
 # ── TAB 2: Policy Rules ──────────────────────────────────────────────────────
 with tab_rules:
+    # ── Archived version viewer (shown when user selects a version in sidebar) ─
+    pinned_ver = st.session_state.get("show_archived_version")
+    if pinned_ver is not None:
+        archived_rules = load_rules_at_version(pinned_ver)
+        st.info(f"📦 Viewing archived **v{pinned_ver}** — {len(archived_rules)} rules  ·  "
+                f"[Click **▶ Current (live)** in sidebar to return to live view]")
+        if archived_rules:
+            arch_df = pd.DataFrame([
+                {
+                    "ID":          r.get("id"),
+                    "Type":        r.get("rule_type", "—"),
+                    "Field":       r.get("condition_field", "—"),
+                    "Op":          r.get("operator", "—"),
+                    "Threshold":   r.get("threshold_value", "—"),
+                    "Description": r.get("description", ""),
+                }
+                for r in archived_rules
+            ])
+            st.dataframe(arch_df, use_container_width=True, hide_index=True,
+                         column_config={"Description": st.column_config.TextColumn(width="large")})
+            st.download_button(
+                f"⬇️ Export v{pinned_ver} JSON",
+                data=json.dumps(archived_rules, indent=2),
+                file_name=f"turgon_rules_v{pinned_ver}.json",
+                mime="application/json",
+            )
+        st.divider()
+
     if not rules:
         st.info("No policy rules extracted yet. Upload a regulatory PDF and run Phase 1.")
     else:
@@ -909,4 +1007,3 @@ with tab_hitl_log:
             )
         else:
             st.caption("Run the pipeline first to generate a compliance report.")
-

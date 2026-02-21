@@ -434,25 +434,5 @@
     "threshold_value": 1,
     "sql_hint": "SELECT * FROM transactions WHERE Is_Laundering = 1",
     "_fingerprint": "08ce80bb32d9d041"
-  },
-  {
-    "id": "RULE_005",
-    "rule_type": "pattern",
-    "description": "Currency Conversion Mismatch Alert - Transactions with different payment and receiving currencies, exceeding USD 5,000",
-    "condition_field": "Payment_Currency",
-    "operator": "!=",
-    "threshold_value": 5000,
-    "sql_hint": "SELECT * FROM transactions WHERE Payment_Currency != Receiving_Currency AND Amount_Paid > 5000",
-    "_fingerprint": "d94b2b0d1fd98b0c"
-  },
-  {
-    "id": "RULE_013",
-    "rule_type": "pattern",
-    "description": "Known Laundering Transaction Audit - All confirmed laundering transactions",
-    "condition_field": "Is_Laundering",
-    "operator": "==",
-    "threshold_value": 1,
-    "sql_hint": "SELECT * FROM transactions WHERE Is_Laundering = 1",
-    "_fingerprint": "541985f990ee52c7"
   }
 ]

@@ -21,19 +21,12 @@ UPLOADS_DIR = BASE_DIR / "uploads"
 for _dir in [DATA_DIR, RULES_DIR, UPLOADS_DIR]:
     _dir.mkdir(exist_ok=True)
 
-# ── OpenRouter / LLM ──────────────────────────────────────────────────────────
-OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+# ── Groq / LLM ────────────────────────────────────────────────────────────────
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 
-# Model to use via OpenRouter.
-# IMPORTANT: prefix with 'openrouter/' so LiteLLM routes via OpenRouter's
-# OpenAI-compatible API rather than trying a native provider SDK.
-# Any OpenRouter model slug works — just prepend 'openrouter/'.
-# Examples:
-#   openrouter/google/gemini-2.0-flash-001
-#   openrouter/anthropic/claude-3-haiku
-#   openrouter/openai/gpt-4o-mini
-DEFAULT_MODEL: str = os.getenv("TURGON_MODEL", "openrouter/z-ai/glm-4.5-air:free")
+# Model to use via Groq.
+# Examples: llama-3.1-8b-instant, mixtral-8x7b-32768, llama-3.1-70b-versatile
+DEFAULT_MODEL: str = os.getenv("TURGON_MODEL", "llama-3.1-8b-instant")
 
 # CrewAI agent settings
 AGENT_MAX_ITER: int = 15
@@ -68,10 +61,10 @@ MAX_RULES_PER_RUN: int = 0
 SQL_BATCH_SIZE: int = 10
 
 # ── Validation ─────────────────────────────────────────────────────────────────
-if not OPENROUTER_API_KEY:
+if not GROQ_API_KEY:
     import warnings
     warnings.warn(
-        "OPENROUTER_API_KEY is not set. "
+        "GROQ_API_KEY is not set. "
         "Set it in your .env file before running the pipeline.",
         stacklevel=2,
     )
@@ -79,27 +72,14 @@ if not OPENROUTER_API_KEY:
 
 def get_llm():
     """
-    Return a CrewAI LLM instance that routes through OpenRouter.
-
-    Why CrewAI LLM instead of ChatOpenAI?
-      CrewAI's Agent constructor calls crewai.utilities.llm_utils.create_llm()
-      which inspects the object type. Passing a raw ChatOpenAI object causes it
-      to re-wrap it through LiteLLM's provider detection, which sees 'google/'
-      in the model name and tries to load the native Gemini SDK (not installed).
-
-      Using CrewAI's own LLM class with the 'openrouter/' prefix tells LiteLLM
-      to use the openrouter/ provider route -> OpenRouter's OpenAI-compatible API.
+    Return a CrewAI LLM instance that routes through Groq.
+    
+    Uses Groq's fast inference API with Llama models.
     """
-    from crewai import LLM
+    from langchain_groq import ChatGroq
 
-    return LLM(
-        model=DEFAULT_MODEL,             # e.g. openrouter/google/gemini-2.0-flash-001
-        api_key=OPENROUTER_API_KEY,
-        base_url=OPENROUTER_BASE_URL,    # https://openrouter.ai/api/v1
-        temperature=0.0,                 # deterministic for compliance extraction
-        max_tokens=4096,
-        extra_headers={
-            "HTTP-Referer": "https://github.com/turgon-engine",
-            "X-Title": "Turgon Policy Engine",
-        },
-    )
+    return ChatGroq(
+    temperature=0,
+    model_name="groq/llama-3.3-70b-versatile",
+)
+
