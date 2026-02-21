@@ -1,5 +1,5 @@
 """
-generate_test_pdf.py — Creates a synthetic AML policy PDF for testing Turgon.
+generate_test_pdf.py — Creates a synthetic AML policy PDF for testing RuleCheck.
 Run once: python generate_test_pdf.py
 """
 from fpdf import FPDF
@@ -23,7 +23,7 @@ class PolicyPDF(FPDF):
         self.set_y(-12)
         self.set_font("Helvetica", "I", 8)
         self.set_text_color(128, 128, 128)
-        self.cell(0, 10, f"Turgon Test Policy v1.0  |  Page {self.page_no()}", align="C")
+        self.cell(0, 10, f"RuleCheck Test Policy v1.0  |  Page {self.page_no()}", align="C")
 
     def section_title(self, title: str):
         self.set_font("Helvetica", "B", 12)
@@ -175,7 +175,7 @@ def build_pdf(out_path: Path) -> None:
     pdf.set_text_color(110, 110, 110)
     pdf.multi_cell(
         0, 5,
-        "This document is a synthetic test policy generated for the Turgon compliance "
+        "This document is a synthetic test policy generated for the RuleCheck compliance "
         "engine. All thresholds referenced are consistent with FinCEN guidance 2024 "
         "and FATF Recommendation 16. For production use, consult your legal team.",
     )
@@ -188,5 +188,5 @@ def build_pdf(out_path: Path) -> None:
 
 
 if __name__ == "__main__":
-    out = Path(r"D:\Projects\Hackfest 2.0\turgon\uploads\test_aml_policy.pdf")
+    out = Path(r"D:\Projects\Hackfest 2.0\RuleCheck\uploads\test_aml_policy.pdf")
     build_pdf(out)

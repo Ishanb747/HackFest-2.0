@@ -1,5 +1,5 @@
 """
-main.py — Turgon pipeline entrypoint.
+main.py — RuleCheck pipeline entrypoint.
 
 Usage:
   python main.py --pdf uploads/aml_policy.pdf
@@ -34,7 +34,6 @@ from rich.rule import Rule
 from rich.table import Table
 
 from agents import build_query_engineer_agent, build_rule_architect_agent
-from config import RULES_DIR, UPLOADS_DIR
 from tasks import build_ingest_task, build_sql_generation_task
 import re
 
@@ -65,8 +64,8 @@ def _extract_json_array(text: str) -> str | None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="turgon",
-        description="Turgon — Autonomous Policy-to-Enforcement Engine",
+        prog="RuleCheck",
+        description="RuleCheck — Autonomous Policy-to-Enforcement Engine",
     )
     parser.add_argument(
         "--pdf",
@@ -102,47 +101,51 @@ def run_phase1(pdf_path: Path) -> dict:
     console.print(Rule("[bold cyan]Phase 1 — RuleForge: PDF Ingestion & Structuring[/]"))
 
     agent = build_rule_architect_agent()
-    task = build_ingest_task(agent, str(pdf_path))
+    task = build_ingest_task(agent, pdf_path.as_posix())
 
     crew = Crew(
         agents=[agent],
         tasks=[task],
         process=Process.sequential,
         verbose=True,
+        cache=False,  # VERY IMPORTANT: Prevents CrewAI from serving cached rules for identical filenames
     )
 
     start = time.time()
-    result = crew.kickoff()
+    try:
+        result = crew.kickoff()
+    except Exception as e:
+        console.print(f"[bold red]Agent Execution Crashed (Rate Limit / API Error):[/]\n{e}")
+        return {"phase": 1, "output": str(e), "elapsed_s": 0, "rules_saved": False}
+        
     elapsed = time.time() - start
 
     raw_output = str(result)
     saved = False
 
-    # Check if policy_rules.json was actually created
-    from config import RULES_JSON_PATH
-    if RULES_JSON_PATH.exists():
-        try:
-            # Maybe it already has our rules
-            rules = json.loads(RULES_JSON_PATH.read_text(encoding="utf-8"))
-            if len(rules) > 0:
-                saved = True
-        except Exception:
-            pass
+    # 1. Always attempt to parse the final answer for JSON as the primary source of truth.
+    #    If the agent forgot to use the tool but outputted JSON, this saves it.
+    #    If the agent used the tool AND outputted JSON, it just safely overwrites it.
+    try:
+        json_str = _extract_json_array(raw_output)
+        if json_str:
+            extracted_rules = json.loads(json_str)
+            import db
+            db.save_rules(extracted_rules)
+            saved = True
+            console.print(f"[green]Extracted {len(extracted_rules)} rules directly from final output and saved to SQLite.[/]")
+    except Exception as e:
+        console.print(f"[yellow]Could not extract JSON from final output: {e}. Falling back to DB check...[/]")
 
-    # Defensive fallback: If agent forgot to use rule_store_writer but outputted JSON, extract it
+    # 2. If no JSON was in the final output, assume the agent successfully used the rule_store_writer tool
     if not saved:
-        try:
-            json_str = _extract_json_array(raw_output)
-            if json_str:
-                rules = json.loads(json_str)
-                RULES_JSON_PATH.write_text(
-                    json.dumps(rules, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-                saved = True
-                console.print(f"[green]Extracted {len(rules)} rules from output and saved to {RULES_JSON_PATH}[/]")
-        except Exception as e:
-            console.print(f"[red]Could not extract rules from output: {e}[/]")
+        import db
+        rules = db.get_rules()
+        if rules:
+            saved = True
+            console.print(f"[green]Agent used rule_store_writer tool. Found {len(rules)} rules in SQLite.[/]")
+        else:
+            console.print("[red]No rules were saved by the tool, and no JSON was found in the final output![/]")
 
     console.print(Panel(
         f"[green]Phase 1 complete in {elapsed:.1f}s[/]\n\n{raw_output[:2000]}{'...' if len(raw_output) > 2000 else ''}",
@@ -162,14 +165,13 @@ def run_phase2() -> dict:
     """
     console.print(Rule("[bold yellow]Phase 2 — Secure Monitor: SQL Generation & Execution[/]"))
 
-    from phase2_executor import run as executor_run, REPORT_JSON
+    from phase2_executor import run as executor_run
 
     start = time.time()
     report = executor_run()   # ← deterministic, no LLM required
     elapsed = time.time() - start
 
     raw_output = json.dumps(report, indent=2)
-    report_path = RULES_DIR / "violation_report.json"     # already written by executor
 
     triggered = sum(1 for r in report if r.get("violation_count", 0) > 0)
     total_v   = sum(r.get("violation_count", 0) for r in report)
@@ -179,7 +181,7 @@ def run_phase2() -> dict:
         f"Rules checked:   {len(report)}\n"
         f"Rules triggered: [red]{triggered}[/]\n"
         f"Total violations:[red] {total_v:,}[/]\n"
-        f"Report saved to: {report_path}",
+        f"Violations saved to SQLite database",
         title="Secure Monitor Output",
         border_style="yellow",
     ))
@@ -202,7 +204,7 @@ def run_phase3(use_llm: bool = True) -> dict:
         f"[blue]Phase 3 complete in {elapsed:.1f}s[/]\n"
         f"Rules explained:  {len(explanations)}\n"
         f"Active alerts:    [red]{triggered}[/]\n"
-        f"Saved to: rules/explanations.json",
+        f"Saved to: SQLite explanations table",
         title="Explanation Agent Output",
         border_style="blue",
     ))
@@ -214,7 +216,7 @@ def run_phase3(use_llm: bool = True) -> dict:
 def print_summary(results: list[dict]) -> None:
     console.print(Rule("[bold white]Pipeline Summary[/]"))
 
-    table = Table(title="Turgon Run Summary", show_header=True, header_style="bold magenta")
+    table = Table(title="RuleCheck Run Summary", show_header=True, header_style="bold magenta")
     table.add_column("Phase", style="cyan", width=10)
     table.add_column("Status", width=12)
     table.add_column("Duration", width=12)
@@ -251,7 +253,7 @@ def main() -> None:
             pdf_path = Path.cwd() / pdf_path
 
     console.print(Panel(
-        f"[bold white]Turgon[/] — Autonomous Policy-to-Enforcement Engine\n"
+        f"[bold white]RuleCheck[/] — Autonomous Policy-to-Enforcement Engine\n"
         f"PDF: [cyan]{pdf_path or 'N/A (Phase 2/3 only)'}[/]\n"
         f"Phase(s): [yellow]{args.phase}[/]",
         border_style="magenta",

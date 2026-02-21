@@ -1,5 +1,5 @@
 """
-agents.py — CrewAI Agent definitions for Turgon.
+agents.py — CrewAI Agent definitions for RuleCheck.
 
 Phase 1: RuleArchitectAgent  — ingests PDF, extracts structured policy rules
 Phase 2: QueryEngineerAgent  — translates rules to SQL, executes safely

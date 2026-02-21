@@ -1,5 +1,5 @@
 """
-app.py — Turgon Human-in-the-Loop Dashboard (Streamlit)
+app.py — RuleCheck Human-in-the-Loop Dashboard (Streamlit)
 
 Launch: streamlit run app.py
 """
@@ -19,18 +19,17 @@ import streamlit as st
 
 # ── Page config (must be first Streamlit call) ──────────────────────────────
 st.set_page_config(
-    page_title="Turgon — Policy Enforcement Engine",
+    page_title="RuleCheck — Policy Enforcement Engine",
     page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+import tempfile
+import db
+
 # ── Paths ────────────────────────────────────────────────────────────────────
-ROOT         = Path(__file__).parent.resolve()
-RULES_JSON   = ROOT / "rules" / "policy_rules.json"
-VIOLATION_JSON = ROOT / "rules" / "violation_report.json"
-UPLOADS_DIR  = ROOT / "uploads"
-UPLOADS_DIR.mkdir(exist_ok=True)
+ROOT = Path(__file__).parent.resolve()
 
 # ── Light Theme CSS ──────────────────────────────────────────────────────────
 st.markdown("""
@@ -179,6 +178,12 @@ st.markdown("""
     color: #166534; max-height: 360px; overflow-y: auto; line-height: 1.5;
   }
 
+  /* ── Custom HTML Table ────────────────────────── */
+  .st-html-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .st-html-table th { background-color: #f1f5f9; padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; color: #1e293b; }
+  .st-html-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; color: #334155; }
+  .st-html-table tr:hover { background-color: #f1f5f9; }
+
   /* ── Streamlit overrides ────────────────────────── */
   .stDataFrame { border-radius: 10px !important; overflow: hidden !important; }
   div[data-testid="stMetric"] { background: #fff; border-radius: 10px; padding: .8rem; border: 1px solid #e2e8f0 !important; }
@@ -193,75 +198,25 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Helpers
-# ═══════════════════════════════════════════════════════════════════════════
-
-def _extract_json_list(text: str) -> list | None:
-    m = re.search(r"```json\s*(\[.*?\])\s*```", text, re.DOTALL)
-    if m:
-        try: return json.loads(m.group(1))
-        except Exception: pass
-    m = re.search(r"```\s*(\[.*?\])\s*```", text, re.DOTALL)
-    if m:
-        try: return json.loads(m.group(1))
-        except Exception: pass
-    start = text.find("["); end = text.rfind("]") + 1
-    if start >= 0 and end > start:
-        try: return json.loads(text[start:end])
-        except Exception: pass
-    return None
-
-
 @st.cache_data(ttl=5)
 def load_rules() -> list[dict]:
-    if RULES_JSON.exists():
-        try: return json.loads(RULES_JSON.read_text(encoding="utf-8"))
-        except Exception: pass
-    return []
-
+    return db.get_rules()
 
 @st.cache_data(ttl=5)
 def load_violations() -> list[dict]:
-    if VIOLATION_JSON.exists():
-        try:
-            raw = VIOLATION_JSON.read_text(encoding="utf-8")
-            data = json.loads(raw)
-            if isinstance(data, list): return data
-            if isinstance(data, dict) and "violations" in data: return data["violations"]
-        except json.JSONDecodeError:
-            raw = VIOLATION_JSON.read_text(encoding="utf-8")
-            extracted = _extract_json_list(raw)
-            if extracted: return extracted
-        except Exception: pass
-    return []
-
+    return db.get_violations()
 
 @st.cache_data(ttl=5)
 def load_explanations() -> list[dict]:
-    p = ROOT / "rules" / "explanations.json"
-    if p.exists():
-        try: return json.loads(p.read_text(encoding="utf-8"))
-        except Exception: pass
-    return []
-
+    return db.get_explanations()
 
 def load_hitl_decisions() -> dict[str, dict]:
     """Load HITL decisions (not cached — must always be fresh)."""
-    try:
-        from hitl import load_decisions
-        return load_decisions()
-    except Exception:
-        return {}
-
+    return db.get_decisions()
 
 @st.cache_data(ttl=10)
 def load_audit_log() -> list[dict]:
-    try:
-        from audit import get_log
-        return get_log(limit=200)
-    except Exception:
-        return []
+    return db.get_log(limit=200)
 
 
 @st.cache_data(ttl=5)
@@ -295,9 +250,9 @@ def badge(text: str, style: str) -> str:
 
 
 def last_run_str() -> str:
-    if VIOLATION_JSON.exists():
-        t = VIOLATION_JSON.stat().st_mtime
-        return datetime.fromtimestamp(t).strftime("%d %b %Y · %H:%M:%S")
+    logs = db.get_log(limit=1)
+    if logs:
+        return logs[0].get("ts", "Never").replace("T", " ")[:19]
     return "Never"
 
 
@@ -307,7 +262,7 @@ def last_run_str() -> str:
 
 st.markdown("""
 <div class="hero-bar">
-  <div class="hero-title">⚖️ Turgon</div>
+  <div class="hero-title">⚖️ RuleCheck</div>
   <div class="hero-sub">Autonomous Policy-to-Enforcement Engine</div>
   <div class="hero-badges">
     <span class="hero-badge">🤖 CrewAI</span>
@@ -325,7 +280,7 @@ st.markdown("""
 # ═══════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.markdown("## ⚖️ Turgon")
+    st.markdown("## ⚖️ RuleCheck")
     st.caption("Autonomous Policy-to-Enforcement Engine")
     st.divider()
 
@@ -428,7 +383,10 @@ if run_btn:
     else:
         pdf_path = None
         if uploaded_file:
-            pdf_path = UPLOADS_DIR / uploaded_file.name
+            # Save into temporary directory
+            temp_dir = Path(tempfile.gettempdir()) / "rulecheck_uploads"
+            temp_dir.mkdir(exist_ok=True)
+            pdf_path = temp_dir / uploaded_file.name
             pdf_path.write_bytes(uploaded_file.read())
 
         phase_flag = (
@@ -455,20 +413,64 @@ if run_btn:
             st.info(f"⏳ Running Phase {'1 + 2' if phase_flag == '12' else phase_flag}… this may take a few minutes.")
 
         log_lines: list[str] = []
-        with st.spinner(""):
+        with st.spinner("Initializing Pipeline..."):
             try:
                 process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                     text=True, cwd=str(ROOT), encoding="utf-8", errors="replace",
                 )
+                
+                # Setup dynamic UI elements for the progress
+                current_phase = st.empty()
+                current_agent = st.empty()
+                current_action = st.empty()
+                
+                with log_area.container():
+                    st.markdown("### 📡 Live Execution Feed")
+                    log_expander = st.expander("Show detailed terminal output", expanded=False)
+                    with log_expander:
+                        raw_log_box = st.empty()
+
                 for line in process.stdout:  # type: ignore
-                    log_lines.append(line.rstrip())
-                    log_area.markdown(
+                    line_str = line.rstrip()
+                    log_lines.append(line_str)
+                    
+                    # Update raw logs silently in the background
+                    raw_log_box.markdown(
                         '<div class="log-box">' +
-                        "\n".join(log_lines[-80:]).replace("<", "&lt;").replace(">", "&gt;") +
+                        "\n".join(log_lines[-40:]).replace("<", "&lt;").replace(">", "&gt;") +
                         "</div>",
                         unsafe_allow_html=True,
                     )
+                    
+                    # Intercept and beautify specific CrewAI / Custom logs
+                    if "Phase 1" in line_str or "Phase 2" in line_str or "Phase 3" in line_str:
+                        if "—" in line_str:
+                            clean_phase = line_str.split("—", 1)[-1].strip()
+                            current_phase.markdown(f"**🔄 Current Phase:** {clean_phase}")
+                    
+                    elif "🤖 Agent Started" in line_str or "Agent:" in line_str:
+                        agent_name = line_str.split(":")[-1].strip() if ":" in line_str else "AI Agent"
+                        if "Agent Started" not in agent_name:
+                            current_agent.markdown(f"**👤 Active Agent:** `{agent_name}`")
+                            current_action.info(f"🧠 {agent_name} is thinking...")
+                            
+                    elif "🔧 Tool Execution Started" in line_str:
+                        current_action.warning(f"🔨 Agent is calling a tool...")
+                        
+                    elif "Tool:" in line_str:
+                        tool_name = line_str.split("Tool:")[-1].strip()
+                        current_action.warning(f"🔨 Executing Tool: `{tool_name}`")
+                        
+                    elif "rule_store_writer" in line_str:
+                        current_action.success(f"💾 Saving extracted rules to database...")
+                        
+                    elif "SUCCESS" in line_str and "violations" in line_str:
+                        current_action.error(f"🚨 {line_str.split(']')[-1].strip()}")
+                        
+                    elif "BLOCKED" in line_str:
+                        current_action.error(f"🛡️ Guardrail active: {line_str.split(']')[-1].strip()}")
+                        
                 process.wait()
 
                 if process.returncode == 0:
@@ -716,20 +718,14 @@ with tab_rules:
             }
             for r in filtered
         ])
-        st.dataframe(
-            df, width='stretch', hide_index=True,
-            column_config={
-                "Description": st.column_config.TextColumn(width="large"),
-                "SQL Hint": st.column_config.TextColumn(width="medium"),
-                "Violations": st.column_config.NumberColumn(format="%d"),
-            },
-        )
+        html_table = df.to_html(index=False, escape=True, classes="st-html-table", border=0)
+        st.markdown(f'<div style="overflow-x:auto;">{html_table}</div>', unsafe_allow_html=True)
 
         c1, c2 = st.columns([1, 5])
         with c1:
             st.download_button(
                 "⬇️ Export JSON", data=json.dumps(filtered, indent=2),
-                file_name="turgon_rules.json", mime="application/json",
+                file_name="RuleCheck_rules.json", mime="application/json",
             )
 
 
@@ -805,32 +801,24 @@ with tab_violations:
             b1, b2, b3, b4 = st.columns([1, 1, 1, 3])
             with b1:
                 if st.button("✅ Confirm", key=f"confirm_{rule_id}_{idx}"):
-                    from hitl import save_decision
-                    from audit import log_hitl_decision
-                    save_decision(rule_id, "CONFIRMED")
-                    log_hitl_decision(rule_id, "CONFIRMED", "analyst", "")
+                    db.save_decision(rule_id, "CONFIRMED", "analyst", "")
                     st.cache_data.clear()
                     st.rerun()
             with b2:
                 if st.button("❌ Dismiss", key=f"dismiss_{rule_id}_{idx}"):
-                    from hitl import save_decision
-                    from audit import log_hitl_decision
-                    save_decision(rule_id, "DISMISSED")
-                    log_hitl_decision(rule_id, "DISMISSED", "analyst", "")
+                    db.save_decision(rule_id, "DISMISSED", "analyst", "")
                     st.cache_data.clear()
                     st.rerun()
             with b3:
                 if st.button("🚨 Escalate", key=f"escalate_{rule_id}_{idx}"):
-                    from hitl import save_decision
-                    from audit import log_hitl_decision
-                    save_decision(rule_id, "ESCALATED")
-                    log_hitl_decision(rule_id, "ESCALATED", "analyst", "Escalated for senior review")
+                    db.save_decision(rule_id, "ESCALATED", "analyst", "Escalated for senior review")
                     st.cache_data.clear()
                     st.rerun()
 
             if samples:
                 with st.expander(f"🔍 View sample violations ({min(len(samples),5)} shown)"):
-                    st.dataframe(pd.DataFrame(samples[:5]), width='stretch', hide_index=True)
+                    html_table = pd.DataFrame(samples[:5]).to_html(index=False, escape=True, classes="st-html-table", border=0)
+                    st.markdown(f'<div style="overflow-x:auto;">{html_table}</div>', unsafe_allow_html=True)
 
             if sql:
                 with st.expander("🔧 View SQL used"):
@@ -845,7 +833,7 @@ with tab_violations:
             st.download_button(
                 "⬇️ Export All Violations (CSV)",
                 data=export_df.to_csv(index=False),
-                file_name=f"turgon_violations_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                file_name=f"RuleCheck_violations_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 width='stretch',
             )
@@ -907,7 +895,7 @@ with tab_explain:
         st.download_button(
             "⬇️ Export Explanations (JSON)",
             data=json.dumps(explanations, indent=2),
-            file_name=f"turgon_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            file_name=f"RuleCheck_explanations_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
             mime="application/json",
         )
 
@@ -926,8 +914,7 @@ with tab_hitl_log:
         else:
             audit_stats_col1, audit_stats_col2, audit_stats_col3 = st.columns(3)
             try:
-                from audit import get_stats
-                stats = get_stats()
+                stats = db.get_stats()
                 audit_stats_col1.metric("Total Events", stats.get("total_events", 0))
                 audit_stats_col2.metric("Pipeline Runs", stats.get("pipeline_runs", 0))
                 audit_stats_col3.metric("HITL Decisions", stats.get("hitl_decisions", 0))
@@ -1001,7 +988,7 @@ with tab_hitl_log:
             st.download_button(
                 "⬇️ Download Compliance Report",
                 data=json.dumps(report_data, indent=2, ensure_ascii=False),
-                file_name=f"turgon_compliance_report_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                file_name=f"RuleCheck_compliance_report_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
                 mime="application/json",
                 width="stretch",
             )

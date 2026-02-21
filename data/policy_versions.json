@@ -1,0 +1,37 @@
+[
+  {
+    "version": 1,
+    "timestamp": "2026-02-21T14:36:14.843112Z",
+    "pdf_source": "test_version_check.pdf",
+    "rule_count": 14,
+    "archive": "policy_rules_v1__20260221T143614Z.json"
+  },
+  {
+    "version": 2,
+    "timestamp": "2026-02-21T14:51:56.866666Z",
+    "pdf_source": "C:/Users/ishan/AppData/Local/Temp/rulecheck_uploads/test_aml_policy.pdf",
+    "rule_count": 15,
+    "archive": "policy_rules_v2__20260221T145156Z.json"
+  },
+  {
+    "version": 3,
+    "timestamp": "2026-02-21T15:48:33.562327Z",
+    "pdf_source": "FATF Recommendations 2012.pdf",
+    "rule_count": 15,
+    "archive": "policy_rules_v3__20260221T154833Z.json"
+  },
+  {
+    "version": 4,
+    "timestamp": "2026-02-21T15:49:52.603316Z",
+    "pdf_source": "FATF Recommendations 2012.pdf",
+    "rule_count": 15,
+    "archive": "policy_rules_v4__20260221T154952Z.json"
+  },
+  {
+    "version": 5,
+    "timestamp": "2026-02-21T16:18:18.530753Z",
+    "pdf_source": "test_aml_policy_modified (2).pdf",
+    "rule_count": 15,
+    "archive": "policy_rules_v5__20260221T161818Z.json"
+  }
+]

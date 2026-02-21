@@ -1,10 +1,10 @@
 """
 data/setup_duckdb.py — One-time setup script to load IBM AML CSV data into DuckDB.
 
-Run this BEFORE the main Turgon pipeline.
+Run this BEFORE the main RuleCheck pipeline.
 
 Usage:
-  cd "d:\Projects\Hackfest 2.0\turgon"
+  cd "d:\Projects\Hackfest 2.0\RuleCheck"
   python data/setup_duckdb.py
 
 Dataset:
@@ -27,7 +27,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Ensure turgon root is on the path when running from data/ subdirectory
+# Ensure RuleCheck root is on the path when running from data/ subdirectory
 ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT))
 
@@ -259,7 +259,7 @@ def create_views_adaptive(conn: duckdb.DuckDBPyConnection, actual_cols: list[str
 
 def setup_database(csv_path: Path) -> None:
     console.print(Panel(
-        f"[bold cyan]Turgon — DuckDB Setup[/]\n"
+        f"[bold cyan]RuleCheck — DuckDB Setup[/]\n"
         f"CSV: [yellow]{csv_path.name}[/]\n"
         f"Target DB: [yellow]{DUCKDB_PATH}[/]",
         border_style="cyan",

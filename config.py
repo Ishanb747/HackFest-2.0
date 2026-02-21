@@ -1,5 +1,5 @@
 """
-config.py — Central configuration for Turgon.
+config.py — Central configuration for RuleCheck.
 
 All constants and environment loading live here.
 Other modules import from this file; never import dotenv elsewhere.
@@ -14,11 +14,9 @@ load_dotenv()
 # ── Base Paths ─────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent.resolve()
 DATA_DIR = BASE_DIR / "data"
-RULES_DIR = BASE_DIR / "rules"
-UPLOADS_DIR = BASE_DIR / "uploads"
 
 # Create directories if they don't exist
-for _dir in [DATA_DIR, RULES_DIR, UPLOADS_DIR]:
+for _dir in [DATA_DIR]:
     _dir.mkdir(exist_ok=True)
 
 # ── Groq / LLM ────────────────────────────────────────────────────────────────
@@ -26,7 +24,7 @@ GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 
 # Model to use via Groq.
 # Examples: llama-3.1-8b-instant, mixtral-8x7b-32768, llama-3.1-70b-versatile
-DEFAULT_MODEL: str = os.getenv("TURGON_MODEL", "llama-3.1-8b-instant")
+DEFAULT_MODEL: str = os.getenv("RuleCheck_MODEL", "llama-3.1-8b-instant")
 
 # CrewAI agent settings
 AGENT_MAX_ITER: int = 15
@@ -47,8 +45,8 @@ AML_CSV_CANDIDATES: list[str] = [
     "LI-Large_Trans.csv",
 ]
 
-# ── Rules Store ────────────────────────────────────────────────────────────────
-RULES_JSON_PATH: Path = RULES_DIR / "policy_rules.json"
+# ── State Database ─────────────────────────────────────────────────────────────
+SQLITE_DB_PATH: Path = DATA_DIR / "rulecheck.db"
 
 # ── Execution Sandbox ──────────────────────────────────────────────────────────
 # Maximum rows returned from a single SQL violation query
@@ -76,10 +74,10 @@ def get_llm():
     
     Uses Groq's fast inference API with Llama models.
     """
-    from langchain_groq import ChatGroq
+    from crewai import LLM
 
-    return ChatGroq(
-    temperature=0,
-    model_name="groq/llama-3.3-70b-versatile",
-)
-
+    return LLM(
+        model="groq/llama-3.1-8b-instant",
+        api_key=GROQ_API_KEY,
+        temperature=0.0
+    )

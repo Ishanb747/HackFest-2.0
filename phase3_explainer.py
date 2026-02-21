@@ -13,9 +13,8 @@ import time
 from pathlib import Path
 
 ROOT             = Path(__file__).parent.resolve()
-RULES_JSON       = ROOT / "rules" / "policy_rules.json"
-VIOLATIONS_JSON  = ROOT / "rules" / "violation_report.json"
-EXPLANATIONS_JSON = ROOT / "rules" / "explanations.json"
+
+import db
 
 RISK_THRESHOLDS = {"HIGH": 500, "MEDIUM": 50, "LOW": 1}
 
@@ -142,15 +141,15 @@ Return ONLY the JSON object, no other text."""
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def run(use_llm: bool = True) -> list[dict]:
-    if not VIOLATIONS_JSON.exists():
-        print("[Phase 3] No violation report found. Run Phase 2 first.")
-        return []
-    if not RULES_JSON.exists():
-        print("[Phase 3] No rules file found. Run Phase 1 first.")
-        return []
+    violations: list[dict] = db.get_violations()
+    rules_raw:  list[dict] = db.get_rules()
 
-    violations: list[dict] = json.loads(VIOLATIONS_JSON.read_text(encoding="utf-8"))
-    rules_raw:  list[dict] = json.loads(RULES_JSON.read_text(encoding="utf-8"))
+    if not violations:
+        print("[Phase 3] No violation report found in database. Run Phase 2 first.")
+        return []
+    if not rules_raw:
+        print("[Phase 3] No rules found in database. Run Phase 1 first.")
+        return []
 
     # Build rule lookup
     rule_map: dict[str, dict] = {r.get("id", ""): r for r in rules_raw}
@@ -205,18 +204,13 @@ def run(use_llm: bool = True) -> list[dict]:
                 "generated_by":       "deterministic",
             })
 
-    EXPLANATIONS_JSON.parent.mkdir(parents=True, exist_ok=True)
-    EXPLANATIONS_JSON.write_text(
-        json.dumps(explanations, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    print(f"\n[Phase 3] Explanations saved -> {EXPLANATIONS_JSON}")
+    db.save_explanations(explanations)
+    print(f"\n[Phase 3] Explanations saved to SQLite database")
     print(f"[Phase 3] {len(triggered)} rules explained in {duration:.1f}s")
 
     # Audit log
     try:
-        from audit import log_explanation_run
-        log_explanation_run(len(triggered), duration)
+        db.log_explanation_run(len(triggered), duration)
     except Exception:
         pass
 

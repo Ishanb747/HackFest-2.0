@@ -1,5 +1,5 @@
 """
-tasks.py — CrewAI Task definitions for Turgon.
+tasks.py — CrewAI Task definitions for RuleCheck.
 
 Task 1: IngestAndStructureRulesTask — Phase 1 RuleForge
 Task 2: GenerateAndExecuteSQLTask   — Phase 2 Secure Monitor
@@ -10,7 +10,6 @@ from pathlib import Path
 
 from crewai import Task
 
-from config import RULES_JSON_PATH
 
 
 # AML Database schema — injected into Phase 2 task context so the agent
@@ -110,13 +109,11 @@ def build_sql_generation_task(agent, context_tasks: list | None = None) -> Task:
     4. Execute via duckdb_execution_sandbox
     5. Return a comprehensive violation report
     """
-    rules_content = "No rules file found — run Phase 1 first."
-    if RULES_JSON_PATH.exists():
-        try:
-            rules = json.loads(RULES_JSON_PATH.read_text(encoding="utf-8"))
-            rules_content = json.dumps(rules, indent=2)
-        except Exception:
-            pass
+    import db
+    rules_content = "No rules found in database — run Phase 1 first."
+    rules = db.get_rules()
+    if rules:
+        rules_content = json.dumps(rules, indent=2)
 
     return Task(
         description=f"""
@@ -170,9 +167,7 @@ against the AML transaction database using structured policy rules.
 }}
 ```
 
-Save this JSON array to a file called `rules/violation_report.json` using Python's 
-file writing (you can write it inline in your final answer or instruct the system to save it,
-but make sure the final output contains the complete JSON).
+Simply output this JSON array. The system will automatically capture it and persist it to the SQLite database. Ensure your final answer contains the complete and valid JSON array.
 """,
         expected_output=(
             "A complete JSON violation report array containing one entry per rule, "

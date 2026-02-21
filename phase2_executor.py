@@ -20,9 +20,8 @@ import duckdb
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).parent.resolve()
-RULES_JSON  = ROOT / "rules" / "policy_rules.json"
-REPORT_JSON = ROOT / "rules" / "violation_report.json"
 DB_PATH     = ROOT / "data" / "aml.db"
+import db
 
 MAX_SAMPLE_ROWS = 5
 ROW_CAP = 1000  # safety cap for violation rows
@@ -148,12 +147,12 @@ def _serialize(val: Any) -> Any:
 # ── Main executor ─────────────────────────────────────────────────────────────
 
 def run() -> list[dict]:
-    if not RULES_JSON.exists():
-        print(f"[ERROR] Rules file not found: {RULES_JSON}")
+    rules: list[dict] = db.get_rules()
+    if not rules:
+        print(f"[Phase 2] No rules found in database. Run Phase 1 first.")
         return []
 
-    rules: list[dict] = json.loads(RULES_JSON.read_text(encoding="utf-8"))
-    print(f"[Phase 2] Loaded {len(rules)} rules from {RULES_JSON.name}")
+    print(f"[Phase 2] Loaded {len(rules)} rules from database")
 
     if not DB_PATH.exists():
         print(f"[ERROR] DuckDB not found at {DB_PATH}. Run setup_duckdb.py first.")
@@ -229,18 +228,14 @@ def run() -> list[dict]:
     conn.close()
     duration = time.time() - t0
 
-    REPORT_JSON.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_JSON.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    print(f"\n[Phase 2] Violation report saved -> {REPORT_JSON}")
+    # Save to SQLite instead of JSON
+    db.save_violations(report)
+    print(f"\n[Phase 2] Violation report saved to SQLite database")
 
     # Audit log
     try:
-        from audit import log_pipeline_run
         triggered = sum(1 for r in report if r.get("violation_count", 0) > 0)
-        log_pipeline_run(2, duration, {
+        db.log_pipeline_run(2, duration, {
             "rules_checked": len(report),
             "rules_triggered": triggered,
             "total_violations": sum(r.get("violation_count", 0) for r in report),

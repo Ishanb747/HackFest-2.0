@@ -1,5 +1,5 @@
 """
-tools.py — Custom CrewAI tools for Turgon.
+tools.py — Custom CrewAI tools for RuleCheck.
 
 Tools:
   1. DoclingPDFParserTool    — Parse regulatory PDFs with layout awareness
@@ -27,12 +27,14 @@ from pydantic import BaseModel, Field
 from config import (
     DUCKDB_PATH,
     MAX_VIOLATION_ROWS,
-    RULES_JSON_PATH,
 )
+import db
+
+from config import DATA_DIR
 
 # ── Versioning paths (sit alongside policy_rules.json) ────────────────────────
-_VERSIONS_DIR     = RULES_JSON_PATH.parent / "versions"
-_VERSION_MANIFEST = RULES_JSON_PATH.parent / "policy_versions.json"
+_VERSIONS_DIR     = DATA_DIR / "versions"
+_VERSION_MANIFEST = DATA_DIR / "policy_versions.json"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -52,28 +54,23 @@ def _next_version() -> int:
 
 def _snapshot_current_rules(pdf_source: str = "unknown") -> dict | None:
     """
-    Copy current policy_rules.json into versions/ and update the manifest.
+    Dump current SQLite rules into versions/ and update the manifest.
     Returns the manifest entry dict, or None if there was nothing to snapshot.
     """
-    if not RULES_JSON_PATH.exists():
+    current_rules = db.get_rules()
+    if not current_rules:
         return None
 
     _VERSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
     version = _next_version()
     ts      = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    rule_count = len(current_rules)
 
-    # Read current rules so we can record rule_count
-    try:
-        current_rules = json.loads(RULES_JSON_PATH.read_text(encoding="utf-8"))
-        rule_count    = len(current_rules)
-    except Exception:
-        rule_count = 0
-
-    # Copy the file
+    # Dump the file
     archive_name = f"policy_rules_v{version}__{ts}.json"
     archive_path = _VERSIONS_DIR / archive_name
-    shutil.copy2(RULES_JSON_PATH, archive_path)
+    archive_path.write_text(json.dumps(current_rules, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Build manifest entry
     entry = {
@@ -113,7 +110,7 @@ def load_version_manifest() -> list[dict]:
 
 
 def load_rules_at_version(version: int) -> list[dict]:
-    """Load the policy_rules.json snapshot for a specific version number."""
+    """Load the SQLite snapshot for a specific version number."""
     manifest = load_version_manifest()
     for entry in manifest:
         if entry.get("version") == version:
@@ -194,6 +191,9 @@ class DoclingPDFParserTool(BaseTool):
                     for i, page in enumerate(pdf_doc):
                         textpage = page.get_textpage()
                         pages.append(f"## Page {i+1}\n\n{textpage.get_text_range()}")
+                        textpage.close()
+                        page.close()
+                    pdf_doc.close()
                     markdown_text = "\n\n".join(pages)
                     pipeline_used = f"raw-text (docling failed: {str(e2)[:80]})"
                 except Exception as e3:
@@ -211,11 +211,11 @@ class DoclingPDFParserTool(BaseTool):
         )
         full_text = header + markdown_text
 
-        # Safety cap for very large documents
-        if len(full_text) > 300_000:
-            full_text = full_text[:300_000] + (
-                "\n\n[TRUNCATED: Document exceeded 300,000 characters. "
-                "Consider splitting the PDF into sections.]"
+        # Safety cap for very large documents (Groq free tier limits are often ~6000 TPM)
+        if len(full_text) > 15_000:
+            full_text = full_text[:15_000] + (
+                "\n\n[TRUNCATED: Document exceeded 15,000 characters. "
+                "Consider splitting the PDF into sections to respect strict Free Tier LLM context limits.]"
             )
 
         return full_text
@@ -263,7 +263,7 @@ class RuleStoreWriterTool(BaseTool):
 
     name: str = "rule_store_writer"
     description: str = (
-        "Save extracted policy rules to the local JSON rule store. "
+        "Save extracted policy rules to the local SQLite rule store. "
         "Accepts a JSON string of rule objects. Deduplicates rules automatically. "
         "Archives the previous rule set for version history. "
         "Returns a summary of how many rules were saved or skipped."
@@ -299,50 +299,22 @@ class RuleStoreWriterTool(BaseTool):
         if not valid_rules:
             return f"ERROR: No valid rules found.\nValidation errors:\n" + "\n".join(validation_errors)
 
-        # ── Load existing rules ───────────────────────────────────────────────
-        RULES_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
-        existing: list[dict] = []
-        if RULES_JSON_PATH.exists():
-            try:
-                existing = json.loads(RULES_JSON_PATH.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                existing = []
-
         # ── ✨ Snapshot BEFORE modifying ──────────────────────────────────────
         snapshot_entry = None
+        existing = db.get_rules()
+        existing_fps = {r.get("fingerprint") for r in existing} if existing else set()
         rules_are_changing = any(
-            self._fingerprint(r) not in {e.get("_fingerprint") for e in existing}
+            self._fingerprint(r) not in existing_fps
             for r in valid_rules
         )
-        if rules_are_changing and RULES_JSON_PATH.exists():
+        if rules_are_changing and existing:
             snapshot_entry = _snapshot_current_rules(pdf_source=pdf_source)
-
-        existing_fps = {r.get("_fingerprint") for r in existing}
-
-        # ── Deduplicate and merge ─────────────────────────────────────────────
-        added = 0
-        skipped = 0
-        for rule in valid_rules:
-            fp = self._fingerprint(rule)
-            if fp in existing_fps:
-                skipped += 1
-            else:
-                rule["_fingerprint"] = fp
-                existing.append(rule)
-                existing_fps.add(fp)
-                added += 1
-
         # ── Persist ───────────────────────────────────────────────────────────
-        RULES_JSON_PATH.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        added, skipped = db.save_rules(valid_rules)
 
         summary = (
-            f"Rule store updated: {added} new rule(s) added, "
-            f"{skipped} duplicate(s) skipped. "
-            f"Total rules in store: {len(existing)}. "
-            f"Saved to: {RULES_JSON_PATH}"
+            f"Rule DB updated: {added} new rule(s) added, "
+            f"{skipped} duplicate(s) skipped."
         )
         if snapshot_entry:
             summary += (
@@ -445,7 +417,7 @@ class SecureSQLValidatorTool(BaseTool):
                     "valid": False,
                     "reason": (
                         f"Blocked keyword '{blocked}' detected. "
-                        "Turgon enforces strictly read-only queries."
+                        "RuleCheck enforces strictly read-only queries."
                     ),
                 })
 
